@@ -1,0 +1,351 @@
+<!-- 功能：社区帖子详情页，展示帖子内容、评论、点赞和收藏交互。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="post-card">
+			<text class="post-badge">{{ badge }}</text>
+			<text class="post-title">{{ title }}</text>
+
+			<view class="tag-row">
+				<text v-for="tag in tags" :key="tag" class="tag-chip">#{{ tag }}</text>
+			</view>
+
+			<view class="post-author-row">
+				<text class="post-meta">{{ meta }}</text>
+				<view v-if="authorType == 'expert'" class="medal-icon" aria-label="expert badge">
+					<text class="medal-star">★</text>
+				</view>
+			</view>
+			<text class="post-content">{{ content }}</text>
+		</view>
+
+		<view class="composer-card">
+			<text class="section-title">{{ copy.addComment }}</text>
+			<textarea
+				v-model="commentInput"
+				class="comment-input"
+				:placeholder="copy.commentPlaceholder"
+				:maxlength="300"
+			/>
+			<button class="comment-button" @tap="submitComment">{{ copy.postButton }}</button>
+		</view>
+
+		<view class="comments-card">
+			<text class="section-title">{{ copy.comments }}</text>
+
+			<view v-if="comments.length == 0" class="empty-comment">
+				<text class="empty-comment-copy">{{ copy.noComments }}</text>
+			</view>
+
+			<view v-for="comment in comments" :key="comment.id" class="comment-item">
+				<view class="comment-author-row">
+					<text class="comment-author">{{ comment.author }}</text>
+					<view v-if="comment.authorType == 'expert'" class="medal-icon medal-comment" aria-label="expert badge">
+						<text class="medal-star">★</text>
+					</view>
+				</view>
+				<text class="comment-meta">{{ comment.meta }}</text>
+				<text class="comment-content">{{ comment.content }}</text>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getApiUrl } from '../../utils/api'
+	import { addCommentToPost, getActiveCommunityPostId, getCommentsForPost } from '../../utils/communityPosts.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const activePostId = ref('')
+	const title = ref('')
+	const badge = ref('Community')
+	const meta = ref('')
+	const content = ref('')
+	const authorType = ref('normal')
+	const tags = ref([] as string[])
+	const comments = ref([] as any[])
+	const commentInput = ref('')
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			addComment: 'Add a comment',
+			commentPlaceholder: 'Write your comment',
+			postButton: 'Post',
+			comments: 'Comments',
+			noComments: 'No comments yet.',
+			commentRequired: 'Comment is required',
+			postNotFound: 'Post not found',
+			postUnavailable: 'This post is unavailable.',
+			backendUnavailable: 'Unable to reach backend.',
+		},
+		zh: {
+			addComment: '添加评论',
+			commentPlaceholder: '写下你的评论',
+			postButton: '发布',
+			comments: '评论',
+			noComments: '还没有评论。',
+			commentRequired: '评论不能为空',
+			postNotFound: '帖子不存在',
+			postUnavailable: '该帖子不可用。',
+			backendUnavailable: '无法连接后端。',
+		},
+	} as any
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const loadPost = () => {
+		const postId = getActiveCommunityPostId()
+		activePostId.value = postId
+		if (postId.length == 0) {
+			title.value = copy.value.postNotFound
+			badge.value = 'Community'
+			meta.value = ''
+			content.value = copy.value.postUnavailable
+			tags.value = [] as string[]
+			return
+		}
+
+		uni.request({
+			url: getApiUrl('/api/community/posts/' + encodeURIComponent(postId)),
+			method: 'GET',
+			timeout: 10000,
+			success: (res) => {
+				const data = res.data as any
+				if (res.statusCode == 200 && data != null && data.post != null) {
+					const post = data.post as any
+					title.value = String(post.title || '')
+					badge.value = String(post.badge || 'Community')
+					meta.value = String(post.meta || '')
+					content.value = String(post.content || '')
+					authorType.value = String(post.authorType || 'normal')
+					tags.value = Array.isArray(post.tags) ? post.tags as string[] : [] as string[]
+					return
+				}
+
+				title.value = copy.value.postNotFound
+				badge.value = 'Community'
+				meta.value = ''
+				content.value = copy.value.postUnavailable
+				authorType.value = 'normal'
+				tags.value = [] as string[]
+			},
+			fail: () => {
+				title.value = copy.value.postNotFound
+				badge.value = 'Community'
+				meta.value = ''
+				content.value = copy.value.backendUnavailable
+				authorType.value = 'normal'
+				tags.value = [] as string[]
+			},
+		})
+	}
+
+	const loadComments = () => {
+		if (activePostId.value.length == 0) {
+			comments.value = []
+			return
+		}
+		comments.value = getCommentsForPost(activePostId.value)
+	}
+
+	const submitComment = () => {
+		if (activePostId.value.length == 0) {
+			return
+		}
+		if (commentInput.value.trim().length == 0) {
+			uni.showToast({
+				title: copy.value.commentRequired,
+				icon: 'none',
+			})
+			return
+		}
+		addCommentToPost(activePostId.value, commentInput.value)
+		commentInput.value = ''
+		loadComments()
+	}
+
+	onLoad(() => {
+		loadPost()
+		loadComments()
+	})
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+		loadPost()
+		loadComments()
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 18px 16px 28px;
+		background-color: #f6f7fb;
+	}
+
+	.post-card,
+	.composer-card,
+	.comments-card {
+		padding: 18px 16px;
+		border-radius: 20px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 24px rgba(31, 41, 55, 0.08);
+	}
+
+	.composer-card,
+	.comments-card {
+		margin-top: 14px;
+	}
+
+	.post-badge {
+		font-size: 12px;
+		font-weight: 700;
+		color: #0f5d74;
+	}
+
+	.post-title {
+		margin-top: 10px;
+		font-size: 24px;
+		line-height: 32px;
+		font-weight: 700;
+		color: #16202a;
+	}
+
+	.tag-row {
+		margin-top: 12px;
+		flex-direction: row;
+		flex-wrap: wrap;
+	}
+
+	.tag-chip {
+		margin-right: 8px;
+		margin-bottom: 8px;
+		padding: 6px 10px;
+		border-radius: 999px;
+		background-color: #edf6fb;
+		font-size: 12px;
+		color: #0f5d74;
+	}
+
+	.post-meta {
+		margin-top: 6px;
+		font-size: 12px;
+		font-weight: 600;
+		color: #6b7280;
+	}
+
+	.post-author-row {
+		margin-top: 6px;
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.post-author-row .post-meta {
+		margin-top: 0;
+	}
+
+	.post-content {
+		margin-top: 16px;
+		font-size: 15px;
+		line-height: 24px;
+		color: #334155;
+	}
+
+	.section-title {
+		font-size: 18px;
+		font-weight: 700;
+		color: #16202a;
+	}
+
+	.comment-input {
+		width: 100%;
+		min-height: 120px;
+		margin-top: 12px;
+		padding: 12px 14px;
+		border-radius: 14px;
+		background-color: #f8fbfd;
+		border-width: 1px;
+		border-style: solid;
+		border-color: #c6dce7;
+		color: #16202a;
+		font-size: 14px;
+	}
+
+	.comment-button {
+		margin-top: 14px;
+		height: 42px;
+		border-radius: 12px;
+		border-width: 0;
+		background-color: #116f91;
+		color: #ffffff;
+		font-size: 15px;
+		font-weight: 600;
+	}
+
+	.empty-comment {
+		margin-top: 12px;
+		padding: 14px 12px;
+		border-radius: 14px;
+		background-color: #f8fbfd;
+	}
+
+	.empty-comment-copy {
+		font-size: 14px;
+		color: #6b7280;
+	}
+
+	.comment-item {
+		margin-top: 12px;
+		padding: 14px 12px;
+		border-radius: 14px;
+		background-color: #f8fbfd;
+	}
+
+	.comment-author {
+		font-size: 14px;
+		font-weight: 700;
+		color: #16202a;
+	}
+
+	.comment-author-row {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.comment-meta {
+		margin-top: 4px;
+		font-size: 12px;
+		color: #6b7280;
+	}
+
+	.comment-content {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 22px;
+		color: #334155;
+	}
+
+	.medal-icon {
+		margin-left: 8px;
+		width: 22px;
+		height: 22px;
+		border-radius: 11px;
+		align-items: center;
+		justify-content: center;
+		background-image: linear-gradient(180deg, #ffe9a8 0%, #f7c948 100%);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 248, 214, 0.92);
+	}
+
+	.medal-star {
+		font-size: 11px;
+		font-weight: 700;
+		color: #8a6200;
+	}
+
+	.medal-comment {
+		margin-left: 6px;
+	}
+</style>

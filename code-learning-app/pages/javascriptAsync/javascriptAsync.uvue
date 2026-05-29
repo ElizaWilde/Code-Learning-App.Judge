@@ -1,0 +1,74 @@
+<!-- 功能：JavaScript 异步编程学习页，讲解回调、Promise 和 async/await 知识。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="section-card knowledge">
+			<text class="section-tag">{{ copy.sectionTag }}</text>
+			<text class="section-title">{{ copy.sectionTitle }}</text>
+			<text class="section-copy">{{ copy.copyOne }}</text>
+			<text class="section-copy">{{ copy.copyTwo }}</text>
+			<text class="section-copy">{{ copy.copyThree }}</text>
+		</view>
+
+		<button class="practice-button" @tap="openPractice">{{ copy.practiceButton }}</button>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			eyebrow: 'JavaScript Module 3',
+			title: 'Async JavaScript',
+			subtitle: 'Understand how JavaScript waits for data and handles work that finishes later.',
+			sectionTag: 'Knowledge Guide',
+			sectionTitle: 'Core ideas',
+			copyOne: 'Asynchronous code is used when a task takes time, such as fetching API data or waiting for user input. JavaScript uses promises to represent future results.',
+			copyTwo: '`async` and `await` make promise-based code easier to read by letting you write it in a top-to-bottom style.',
+			copyThree: 'You should also handle failure with `try/catch`, because network requests and remote services are not guaranteed to succeed.',
+			practiceButton: 'Go To Practice',
+		},
+		zh: {
+			eyebrow: 'JavaScript 模块 3',
+			title: '异步 JavaScript',
+			subtitle: '理解 JavaScript 如何等待数据，以及如何处理稍后才完成的任务。',
+			sectionTag: '知识讲解',
+			sectionTitle: '核心概念',
+			copyOne: '当任务需要时间时，例如获取 API 数据或等待用户输入，就会使用异步代码。JavaScript 用 Promise 表示未来才会得到的结果。',
+			copyTwo: '`async` 和 `await` 让基于 Promise 的代码更易读，你可以像自上而下写同步代码那样编写它。',
+			copyThree: '你还应使用 `try/catch` 处理失败，因为网络请求和远程服务并不保证一定成功。',
+			practiceButton: '前往练习',
+		},
+	}
+
+	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+	const openPractice = () => {
+		uni.navigateTo({
+			url: '/pages/javascriptAsyncPractice/javascriptAsyncPractice',
+		})
+	}
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+</script>
+
+<style>
+	.page { min-height: 100vh; padding: 20px 18px 28px; background-color: #fff8ef; }
+	.hero { padding: 12px 2px 18px; }
+	.eyebrow { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #0f5d74; }
+	.title { margin-top: 10px; font-size: 30px; line-height: 36px; font-weight: 700; color: #1f2937; }
+	.subtitle { margin-top: 10px; font-size: 14px; line-height: 21px; color: #6b7280; }
+	.section-card { padding: 20px 16px; margin-bottom: 14px; border-radius: 20px; background-color: #ffffff; box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08); }
+	.knowledge { background-image: linear-gradient(180deg, #0d7695 0%, #5c8fb4 100%); }
+	.section-tag { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: rgba(255, 255, 255, 0.88); }
+	.section-title { margin-top: 8px; font-size: 20px; font-weight: 700; color: #ffffff; }
+	.section-copy { margin-top: 10px; font-size: 14px; line-height: 21px; color: rgba(255, 255, 255, 0.92); }
+	.practice-button { height: 42px; border-radius: 14px; border-width: 0; background-color: #16394b; color: #ffffff; font-size: 15px; font-weight: 600; }
+</style>

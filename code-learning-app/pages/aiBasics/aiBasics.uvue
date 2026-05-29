@@ -1,0 +1,264 @@
+<!-- 功能：AI 基础学习页，展示人工智能知识点、学习路径和练习入口。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="summary-card">
+			<text class="summary-title">{{ copy.whatYouWillLearn }}</text>
+			<text class="summary-copy">{{ copy.summary }}</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">{{ copy.modules }}</text>
+			<view class="lesson-card" @tap="openModule('ai-basics')">
+				<text class="lesson-title">{{ copy.module1Title }}</text>
+				<text class="lesson-copy">{{ copy.module1Copy }}</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('llm-workings')">
+				<text class="lesson-title">{{ copy.module2Title }}</text>
+				<text class="lesson-copy">{{ copy.module2Copy }}</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('prompting-eval')">
+				<text class="lesson-title">{{ copy.module3Title }}</text>
+				<text class="lesson-copy">{{ copy.module3Copy }}</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('ai-safety')">
+				<text class="lesson-title">{{ copy.module4Title }}</text>
+				<text class="lesson-copy">{{ copy.module4Copy }}</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="section-title">{{ copy.projectCases }}</text>
+			<view class="project-card" @tap="openProject('ai-code-reviewer')">
+				<view class="project-header">
+					<text class="project-title">AI Code Reviewer</text>
+					<text class="project-badge">{{ copy.intermediate }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project1Copy }}</text>
+				<text class="project-tech">Prompting · API Integration · Evaluation</text>
+			</view>
+			<view class="project-card" @tap="openProject('ai-chatbot-builder')">
+				<view class="project-header">
+					<text class="project-title">Smart Chatbot Builder</text>
+					<text class="project-badge">{{ copy.advanced }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project2Copy }}</text>
+				<text class="project-tech">LLM APIs · Context Management · UX</text>
+			</view>
+			<view class="project-card" @tap="openProject('ai-content-gen')">
+				<view class="project-header">
+					<text class="project-title">Content Generation Tool</text>
+					<text class="project-badge">{{ copy.advanced }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project3Copy }}</text>
+				<text class="project-tech">Prompting · Validation · Output Processing</text>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { openStudyModule } from '../../utils/studyModule.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const ACTIVE_PROJECT_KEY = 'activeProjectId'
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			eyebrow: 'AI Basic Knowledge',
+			title: 'Build a clear foundation for modern AI tools',
+			subtitle: 'This path gives you the concepts needed to understand LLM apps before using them in coding projects.',
+			whatYouWillLearn: 'What you will learn',
+			summary: 'Machine learning basics, tokens, prompts, embeddings, model limits, and responsible usage.',
+			modules: 'Modules',
+			module1Title: '1. AI and machine learning basics',
+			module1Copy: 'Understand training, inference, data, and what models actually do.',
+			module2Title: '2. How large language models work',
+			module2Copy: 'Learn about tokens, context windows, completions, and reasoning limits.',
+			module3Title: '3. Prompting and evaluation',
+			module3Copy: 'Write clearer prompts and evaluate responses for quality and reliability.',
+			module4Title: '4. Safety and practical workflows',
+			module4Copy: 'Use AI responsibly for coding, writing, research, and everyday productivity.',
+			projectCases: 'Project Cases',
+			intermediate: 'Intermediate',
+			advanced: 'Advanced',
+			project1Copy: 'Use LLMs to review code for bugs, style issues, and performance improvements with prompt engineering.',
+			project2Copy: 'Build a conversational assistant with context awareness, proper error handling, and response evaluation.',
+			project3Copy: 'Create an app that generates essays, summaries, or code based on user prompts with quality checks.',
+		},
+		zh: {
+			eyebrow: 'AI 基础知识',
+			title: '为现代 AI 工具打下清晰基础',
+			subtitle: '这条路径帮助你在编码项目中使用 LLM 应用之前先理解必要概念。',
+			whatYouWillLearn: '你将学到',
+			summary: '机器学习基础、Token、提示词、Embedding、模型限制以及负责任的使用方式。',
+			modules: '模块',
+			module1Title: '1. AI 与机器学习基础',
+			module1Copy: '理解训练、推理、数据以及模型到底在做什么。',
+			module2Title: '2. 大语言模型的工作原理',
+			module2Copy: '了解 Token、上下文窗口、补全和推理限制。',
+			module3Title: '3. 提示词与评估',
+			module3Copy: '编写更清晰的提示词，并从质量与可靠性角度评估响应。',
+			module4Title: '4. 安全与实用工作流',
+			module4Copy: '在编码、写作、研究和日常效率场景中负责任地使用 AI。',
+			projectCases: '项目案例',
+			intermediate: '中级',
+			advanced: '高级',
+			project1Copy: '使用 LLM 和提示词工程来审查代码中的 bug、风格问题和性能改进点。',
+			project2Copy: '构建一个具备上下文感知、良好错误处理和响应评估能力的对话助手。',
+			project3Copy: '创建一个可根据用户提示生成文章、摘要或代码，并进行质量检查的应用。',
+		},
+	} as any
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const openModule = (moduleId : string) => {
+		openStudyModule(moduleId)
+	}
+
+	const openProject = (projectId: string) => {
+		uni.setStorageSync(ACTIVE_PROJECT_KEY, projectId)
+		uni.navigateTo({
+			url: '/pages/projectShowcase/projectShowcase'
+		})
+	}
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #f8f6ff;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #6b4cd3;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #1b1d31;
+	}
+
+	.subtitle {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #666b86;
+	}
+
+	.summary-card,
+	.lesson-card {
+		padding: 18px 16px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 30px rgba(65, 53, 130, 0.08);
+	}
+
+	.summary-card {
+		margin-bottom: 18px;
+		background-image: linear-gradient(180deg, #6a5cff 0%, #9f89f7 100%);
+	}
+
+	.summary-title {
+		font-size: 18px;
+		font-weight: 700;
+		color: #ffffff;
+	}
+
+	.summary-copy {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: rgba(255, 255, 255, 0.92);
+	}
+
+	.section-title {
+		margin-bottom: 12px;
+		font-size: 18px;
+		font-weight: 700;
+		color: #1b1d31;
+	}
+
+	.lesson-card {
+		margin-bottom: 12px;
+	}
+
+	.lesson-title {
+		font-size: 16px;
+		font-weight: 700;
+		color: #171925;
+	}
+
+	.lesson-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #666b86;
+	}
+
+	.project-card {
+		padding: 18px 16px;
+		margin-bottom: 12px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 30px rgba(65, 53, 130, 0.08);
+	}
+
+	.project-header {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.project-title {
+		font-size: 16px;
+		font-weight: 700;
+		color: #171925;
+		flex: 1;
+	}
+
+	.project-badge {
+		padding: 5px 10px;
+		border-radius: 6px;
+		background-color: #ece8ff;
+		font-size: 12px;
+		font-weight: 700;
+		color: #6b4cd3;
+	}
+
+	.project-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #666b86;
+	}
+
+	.project-tech {
+		margin-top: 8px;
+		font-size: 12px;
+		color: #6b4cd3;
+		font-weight: 600;
+	}
+</style>

@@ -1,0 +1,74 @@
+<!-- 功能：JavaScript DOM 学习页，讲解元素选择、事件绑定和页面操作知识。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="section-card knowledge">
+			<text class="section-tag">{{ copy.sectionTag }}</text>
+			<text class="section-title">{{ copy.sectionTitle }}</text>
+			<text class="section-copy">{{ copy.copyOne }}</text>
+			<text class="section-copy">{{ copy.copyTwo }}</text>
+			<text class="section-copy">{{ copy.copyThree }}</text>
+		</view>
+
+		<button class="practice-button" @tap="openPractice">{{ copy.practiceButton }}</button>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			eyebrow: 'JavaScript Module 4',
+			title: 'DOM and Debugging',
+			subtitle: 'Connect JavaScript to the UI and learn how to inspect and fix runtime problems.',
+			sectionTag: 'Knowledge Guide',
+			sectionTitle: 'Core ideas',
+			copyOne: 'The DOM is the browser representation of a web page. JavaScript can read elements, update content, and listen for user events like clicks and typing.',
+			copyTwo: 'Debugging means finding the exact place where logic or data stopped matching your expectation. The browser console and network tools make this much faster.',
+			copyThree: 'A practical debugging workflow is to reproduce the bug, isolate one variable at a time, and verify assumptions with logs or devtools.',
+			practiceButton: 'Go To Practice',
+		},
+		zh: {
+			eyebrow: 'JavaScript 模块 4',
+			title: 'DOM 与调试',
+			subtitle: '把 JavaScript 连接到界面，并学习如何检查和修复运行时问题。',
+			sectionTag: '知识讲解',
+			sectionTitle: '核心概念',
+			copyOne: 'DOM 是浏览器对网页的内部表示。JavaScript 可以读取元素、更新内容，并监听点击、输入等用户事件。',
+			copyTwo: '调试意味着找到逻辑或数据与预期不一致的确切位置。浏览器控制台和网络工具能让这个过程快很多。',
+			copyThree: '实用的调试流程是先稳定复现问题，再一次只隔离一个变量，并用日志或开发者工具验证假设。',
+			practiceButton: '前往练习',
+		},
+	}
+
+	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+	const openPractice = () => {
+		uni.navigateTo({
+			url: '/pages/javascriptDomPractice/javascriptDomPractice',
+		})
+	}
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+</script>
+
+<style>
+	.page { min-height: 100vh; padding: 20px 18px 28px; background-color: #fff8ef; }
+	.hero { padding: 12px 2px 18px; }
+	.eyebrow { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #0f5d74; }
+	.title { margin-top: 10px; font-size: 30px; line-height: 36px; font-weight: 700; color: #1f2937; }
+	.subtitle { margin-top: 10px; font-size: 14px; line-height: 21px; color: #6b7280; }
+	.section-card { padding: 20px 16px; margin-bottom: 14px; border-radius: 20px; background-color: #ffffff; box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08); }
+	.knowledge { background-image: linear-gradient(180deg, #0d7695 0%, #5c8fb4 100%); }
+	.section-tag { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: rgba(255, 255, 255, 0.88); }
+	.section-title { margin-top: 8px; font-size: 20px; font-weight: 700; color: #ffffff; }
+	.section-copy { margin-top: 10px; font-size: 14px; line-height: 21px; color: rgba(255, 255, 255, 0.92); }
+	.practice-button { height: 42px; border-radius: 14px; border-width: 0; background-color: #16394b; color: #ffffff; font-size: 15px; font-weight: 600; }
+</style>

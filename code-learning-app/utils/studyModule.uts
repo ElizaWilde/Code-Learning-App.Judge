@@ -1,0 +1,9 @@
+// 功能：定义学习模块类型结构，统一学习模块数据字段约定。
+export const ACTIVE_STUDY_MODULE_KEY = 'activeStudyModule'
+
+export function openStudyModule(moduleId : string) {
+	uni.setStorageSync(ACTIVE_STUDY_MODULE_KEY, moduleId)
+	uni.navigateTo({
+		url: '/pages/studyModule/studyModule',
+	})
+}

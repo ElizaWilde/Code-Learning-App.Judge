@@ -1,0 +1,383 @@
+<!-- 功能：任务页，管理每日学习任务、完成状态和任务进度反馈。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="section-copy">{{ copy.heroCopy }}</text>
+		</view>
+
+		<view class="roadmap-card accent">
+			<text class="roadmap-label">{{ copy.plan }}</text>
+			<text class="roadmap-title">{{ copy.roadmapTitle }}</text>
+			<text class="roadmap-copy">{{ copy.roadmapCopy }}</text>
+		</view>
+
+		<view v-if="backendMessage.length > 0" class="backend-message">
+			<text class="backend-message-copy">{{ backendMessage }}</text>
+		</view>
+
+		<view class="quest-section" v-for="group in questGroups" :key="group.category">
+			<text class="section-title">{{ group.category }}</text>
+			<text class="section-copy">{{ group.copy }}</text>
+
+			<view class="quest-item" v-for="quest in group.items" :key="quest.id" @tap="openQuest(quest.id)">
+				<view class="quest-meta">
+					<view class="quest-header">
+						<text class="quest-name">{{ quest.title }}</text>
+						<text v-if="getQuestStatus(quest.id) == 'solved'" class="quest-state solved">{{ copy.solved }}</text>
+						<text v-else-if="getQuestStatus(quest.id) == 'attempted'" class="quest-state attempted">{{ copy.attempted }}</text>
+					</view>
+					<text class="quest-desc">{{ quest.description }}</text>
+				</view>
+				<text class="quest-level" :class="quest.difficultyClass">{{ quest.difficulty }}</text>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getApiOrigin, getApiUrl } from '../../utils/api'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	type QuestSummary = {
+		id: string
+		title: string
+		difficulty: string
+		difficultyClass: string
+		category: string
+		acceptance: string
+		description: string
+	}
+
+	type QuestGroup = {
+		category: string
+		copy: string
+		items: QuestSummary[]
+	}
+
+	type LanguageCode = 'en' | 'zh'
+	type TaskCopy = {
+		eyebrow: string
+		title: string
+		heroCopy: string
+		plan: string
+		roadmapTitle: string
+		roadmapCopy: string
+		solved: string
+		attempted: string
+		backendCatalogCategoryPrefix: string
+		localCatalogMessagePrefix: string
+	}
+
+	const ACTIVE_QUEST_KEY = 'activeQuestId'
+	const QUEST_STATUS_PREFIX = 'questStatus:'
+	const statusMap = reactive({} as any)
+	const backendMessage = ref('')
+	const questGroups = ref([] as QuestGroup[])
+	const currentLanguage = ref(getCurrentLanguage() as LanguageCode)
+	const copyMap = {
+		en: {
+			eyebrow: 'Task',
+			title: 'DSA Roadmap',
+			heroCopy: 'Practice quests are loaded from the backend catalog so admin-created problems appear here automatically.',
+			plan: 'Plan',
+			roadmapTitle: 'Data Structures and Algorithms',
+			roadmapCopy: 'Work through the active backend question bank and track which quests you attempted or solved.',
+			solved: 'Solved',
+			attempted: 'Attempted',
+			backendCatalogCategoryPrefix: 'Backend catalog category: ',
+			localCatalogMessagePrefix: 'Quest catalog is loaded locally. New admin-created quests require a reachable backend at ',
+		},
+		zh: {
+			eyebrow: '任务',
+			title: 'DSA 路线图',
+			heroCopy: '练习题会从后端题库加载，因此后台新建的题目会自动出现在这里。',
+			plan: '计划',
+			roadmapTitle: '数据结构与算法',
+			roadmapCopy: '完成当前后端题库中的题目，并追踪你尝试过或已解决的题目。',
+			solved: '已解决',
+			attempted: '已尝试',
+			backendCatalogCategoryPrefix: '后端题库分类：',
+			localCatalogMessagePrefix: '当前使用本地题库。要查看后台新建题目，请确保后端可访问：',
+		},
+	} as Record<LanguageCode, TaskCopy>
+
+	const copy = computed(() : TaskCopy => {
+		return copyMap[currentLanguage.value]
+	})
+
+	const fallbackQuests : QuestSummary[] = [
+		{ id: 'two-sum', title: 'Two Sum', difficulty: 'Easy', difficultyClass: 'easy', category: 'Array', acceptance: 'Acceptance 49.2%', description: 'Array, hash map, lookup strategy' },
+		{ id: 'contains-duplicate', title: 'Contains Duplicate', difficulty: 'Easy', difficultyClass: 'easy', category: 'Array', acceptance: 'Acceptance 61.4%', description: 'Array, set, duplicate detection' },
+		{ id: 'product-except-self', title: 'Product of Array Except Self', difficulty: 'Medium', difficultyClass: 'medium', category: 'Array', acceptance: 'Acceptance 66.7%', description: 'Prefix suffix, array traversal' },
+		{ id: 'merge-strings', title: 'Merge Strings Alternately', difficulty: 'Easy', difficultyClass: 'easy', category: 'Two Pointers', acceptance: 'Acceptance 82.1%', description: 'Two pointers, string' },
+		{ id: 'best-time-stock', title: 'Best Time to Buy and Sell Stock', difficulty: 'Easy', difficultyClass: 'easy', category: 'Two Pointers', acceptance: 'Acceptance 55.3%', description: 'Pointers, greedy scan, min tracking' },
+		{ id: 'longest-substring', title: 'Longest Substring Without Repeating Characters', difficulty: 'Medium', difficultyClass: 'medium', category: 'Sliding Window', acceptance: 'Acceptance 37.1%', description: 'Sliding window, map, string' },
+		{ id: 'valid-parentheses', title: 'Valid Parentheses', difficulty: 'Easy', difficultyClass: 'easy', category: 'Stack', acceptance: 'Acceptance 41.8%', description: 'Stack, string matching' },
+		{ id: 'min-stack', title: 'Min Stack', difficulty: 'Medium', difficultyClass: 'medium', category: 'Stack', acceptance: 'Acceptance 56.1%', description: 'Stack design, constant-time min' },
+		{ id: 'daily-temperatures', title: 'Daily Temperatures', difficulty: 'Medium', difficultyClass: 'medium', category: 'Monotonic Stack', acceptance: 'Acceptance 67.2%', description: 'Monotonic stack, next greater element' },
+		{ id: 'invert-binary-tree', title: 'Invert Binary Tree', difficulty: 'Easy', difficultyClass: 'easy', category: 'Tree', acceptance: 'Acceptance 78.4%', description: 'Tree recursion, traversal' },
+		{ id: 'binary-level-order', title: 'Binary Tree Level Order Traversal', difficulty: 'Medium', difficultyClass: 'medium', category: 'Tree BFS', acceptance: 'Acceptance 70.2%', description: 'Queue, BFS, tree levels' },
+		{ id: 'number-of-islands', title: 'Number of Islands', difficulty: 'Medium', difficultyClass: 'medium', category: 'Graph DFS', acceptance: 'Acceptance 61.9%', description: 'Grid DFS/BFS, graph traversal' },
+	]
+
+	const isQuestSummary = (value : any): boolean => {
+		return value != null
+			&& typeof value == 'object'
+			&& typeof value.id == 'string'
+			&& typeof value.title == 'string'
+			&& typeof value.difficulty == 'string'
+			&& typeof value.difficultyClass == 'string'
+			&& typeof value.category == 'string'
+			&& typeof value.acceptance == 'string'
+			&& typeof value.description == 'string'
+	}
+
+	const loadStatuses = () => {
+		const allQuests = questGroups.value
+		allQuests.forEach((group) => {
+			group.items.forEach((quest) => {
+				statusMap[quest.id] = uni.getStorageSync(QUEST_STATUS_PREFIX + quest.id) as string
+			})
+		})
+	}
+
+	const buildCategoryCopy = (category : string): string => {
+		return copy.value.backendCatalogCategoryPrefix + category + '.'
+	}
+
+	const applyQuestGroups = (items : QuestSummary[]) => {
+		const byCategory : Record<string, QuestSummary[]> = {}
+		items.forEach((item) => {
+			const category = item.category.length > 0 ? item.category : 'Uncategorized'
+			if (!byCategory[category]) {
+				byCategory[category] = []
+			}
+			byCategory[category].push(item)
+		})
+
+		const categories = Object.keys(byCategory).sort()
+		const groups = [] as QuestGroup[]
+		categories.forEach((category) => {
+			const sortedItems = byCategory[category].sort((left, right) => {
+				return left.title.localeCompare(right.title)
+			})
+			groups.push({
+				category,
+				copy: buildCategoryCopy(category),
+				items: sortedItems,
+			})
+		})
+
+		questGroups.value = groups
+		loadStatuses()
+	}
+
+	const loadFallbackCatalog = () => {
+		backendMessage.value = copy.value.localCatalogMessagePrefix + getApiOrigin() + '.'
+		applyQuestGroups(fallbackQuests)
+	}
+
+	const loadQuestCatalog = () => {
+		uni.request({
+			url: getApiUrl('/api/judge/catalog'),
+			method: 'GET',
+			success: (res) => {
+				const data = res.data as any
+				if (res.statusCode == 200 && data != null && typeof data == 'object' && Array.isArray(data.items) && data.items.every(isQuestSummary)) {
+					backendMessage.value = ''
+					applyQuestGroups(data.items as QuestSummary[])
+					return
+				}
+
+				loadFallbackCatalog()
+			},
+			fail: () => {
+				loadFallbackCatalog()
+			},
+		})
+	}
+
+	onLoad(() => {
+		loadQuestCatalog()
+	})
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+		loadStatuses()
+	})
+
+	const getQuestStatus = (questId : string): string => {
+		return (statusMap[questId] as string) || ''
+	}
+
+	const openQuest = (questId: string) => {
+		uni.setStorageSync(ACTIVE_QUEST_KEY, questId)
+		uni.navigateTo({
+			url: '/pages/quest/quest',
+		})
+	}
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #fff8f1;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #9a4f17;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #1f2937;
+	}
+
+	.roadmap-card {
+		padding: 20px 18px;
+		margin-bottom: 14px;
+		border-radius: 22px;
+		box-shadow: 0 12px 28px rgba(110, 67, 20, 0.08);
+	}
+
+	.accent {
+		background-image: linear-gradient(180deg, #f4af31 0%, #eb8e65 100%);
+	}
+
+	.roadmap-label {
+		font-size: 12px;
+		font-weight: 600;
+		color: rgba(70, 34, 8, 0.82);
+	}
+
+	.roadmap-title {
+		margin-top: 10px;
+		font-size: 20px;
+		line-height: 28px;
+		font-weight: 700;
+		color: #42230c;
+	}
+
+	.roadmap-copy {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: rgba(53, 28, 9, 0.86);
+	}
+
+	.backend-message {
+		padding: 14px 16px;
+		margin-bottom: 14px;
+		border-radius: 18px;
+		background-color: rgba(255, 239, 214, 0.92);
+	}
+
+	.backend-message-copy {
+		font-size: 13px;
+		line-height: 19px;
+		color: #8b4513;
+	}
+
+	.quest-section {
+		padding: 20px 18px;
+		margin-bottom: 14px;
+		border-radius: 22px;
+		background-color: rgba(255, 255, 255, 0.62);
+	}
+
+	.section-title {
+		font-size: 20px;
+		font-weight: 700;
+		color: #1f2937;
+	}
+
+	.section-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #6b7280;
+	}
+
+	.quest-item {
+		margin-top: 14px;
+		padding: 16px 14px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		box-shadow: 0 10px 22px rgba(110, 67, 20, 0.06);
+	}
+
+	.quest-meta {
+		flex: 1;
+		padding-right: 12px;
+	}
+
+	.quest-header {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.quest-name {
+		font-size: 16px;
+		font-weight: 600;
+		color: #111827;
+	}
+
+	.quest-desc {
+		margin-top: 6px;
+		font-size: 13px;
+		color: #6b7280;
+	}
+
+	.quest-level {
+		padding: 8px 12px;
+		border-radius: 999px;
+		font-size: 12px;
+		font-weight: 700;
+	}
+
+	.easy {
+		background-color: rgba(16, 185, 129, 0.14);
+		color: #047857;
+	}
+
+	.medium {
+		background-color: rgba(245, 158, 11, 0.16);
+		color: #b45309;
+	}
+
+	.hard {
+		background-color: rgba(239, 68, 68, 0.14);
+		color: #b91c1c;
+	}
+
+	.quest-state {
+		margin-left: 12px;
+		font-size: 12px;
+		font-weight: 700;
+	}
+
+	.solved {
+		color: #047857;
+	}
+
+	.attempted {
+		color: #b45309;
+	}
+</style>

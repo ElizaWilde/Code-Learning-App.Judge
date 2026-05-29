@@ -1,0 +1,434 @@
+<!-- 功能：登录注册页，处理用户账号输入、身份切换、登录注册和本地会话保存。 -->
+<template>
+	<view class="page">
+		<view class="language-switch">
+			<button
+				class="language-button"
+				:class="currentLanguage == 'en' ? 'language-button-active' : ''"
+				@tap="setLanguage('en')"
+			>
+				English
+			</button>
+			<button
+				class="language-button"
+				:class="currentLanguage == 'zh' ? 'language-button-active' : ''"
+				@tap="setLanguage('zh')"
+			>
+				中文
+			</button>
+		</view>
+
+		<view class="logo-frame">
+			<image class="logo" src="/static/logo.png" mode="aspectFit"></image>
+		</view>
+
+		<view class="hero">
+			<text class="title">{{ copy.welcome }}</text>
+			<text class="title">CodeBox</text>
+			<text class="subtitle">{{ isRegisterMode ? copy.registerSubtitle : copy.loginSubtitle }}</text>
+		</view>
+
+		<view class="card">
+			<view class="field">
+				<input
+					class="input"
+					v-model.trim="form.username"
+					:placeholder="copy.usernamePlaceholder"
+					placeholder-class="placeholder"
+				/>
+			</view>
+
+			<view class="field">
+				<input
+					class="input"
+					v-model="form.password"
+					:password="true"
+					:placeholder="copy.passwordPlaceholder"
+					placeholder-class="placeholder"
+				/>
+			</view>
+
+			<text class="hint">{{ copy.hint }}</text>
+			<text v-if="form.errorMessage.length > 0" class="error">{{ form.errorMessage }}</text>
+
+			<button class="submit" :loading="form.submitting" @tap="submitAuthAction">{{ isRegisterMode ? copy.registerButton : copy.loginButton }}</button>
+			<button class="toggle" @tap="toggleMode">{{ isRegisterMode ? copy.backToLoginButton : copy.createAccountButton }}</button>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { getApiUrl } from '../../utils/api'
+	import { getCurrentLanguage, setCurrentLanguage } from '../../utils/i18n.uts'
+
+	type AuthMode = 'login' | 'register'
+	type LanguageCode = 'en' | 'zh'
+
+	type LoginForm = {
+		username: string
+		password: string
+		errorMessage: string
+		submitting: boolean
+	}
+
+	type LoginRequestPayload = {
+		username: string
+		password: string
+	}
+
+	type LoginCopy = {
+		welcome: string
+		loginSubtitle: string
+		registerSubtitle: string
+		usernamePlaceholder: string
+		passwordPlaceholder: string
+		hint: string
+		loginButton: string
+		registerButton: string
+		backToLoginButton: string
+		createAccountButton: string
+		registrationSuccess: string
+		loginSuccess: string
+		requiredError: string
+		invalidAuthError: string
+		usernameExistsError: string
+		ruleError: string
+		requestFailedPrefix: string
+		serverUnavailableError: string
+	}
+
+	const LOGIN_USER_KEY = 'loggedInUser'
+	const LOGIN_USER_TYPE_KEY = 'loggedInUserType'
+	const AUTH_TOKEN_KEY = 'authToken'
+	const isRegisterMode = ref(false)
+	const currentLanguage = ref(getCurrentLanguage() as LanguageCode)
+
+	const copyMap = {
+		en: {
+			welcome: 'Welcome to',
+			loginSubtitle: 'Sign in to continue',
+			registerSubtitle: 'Create an account to continue',
+			usernamePlaceholder: 'Username',
+			passwordPlaceholder: 'Password',
+			hint: 'Username at least 3 chars, password at least 6 chars.',
+			loginButton: 'Login',
+			registerButton: 'Register',
+			backToLoginButton: 'Back to Login',
+			createAccountButton: 'Create Account',
+			registrationSuccess: 'Registration successful',
+			loginSuccess: 'Login successful',
+			requiredError: 'Username and password are required.',
+			invalidAuthError: 'Invalid username or password.',
+			usernameExistsError: 'Username already exists.',
+			ruleError: 'Username must be at least 3 characters and password at least 6 characters.',
+			requestFailedPrefix: 'Request failed. Backend returned status ',
+			serverUnavailableError: 'Unable to reach the login server.',
+		},
+		zh: {
+			welcome: '欢迎来到',
+			loginSubtitle: '登录后继续使用',
+			registerSubtitle: '创建账号后继续使用',
+			usernamePlaceholder: '用户名',
+			passwordPlaceholder: '密码',
+			hint: '用户名至少 3 位，密码至少 6 位。',
+			loginButton: '登录',
+			registerButton: '注册',
+			backToLoginButton: '返回登录',
+			createAccountButton: '创建账号',
+			registrationSuccess: '注册成功',
+			loginSuccess: '登录成功',
+			requiredError: '请输入用户名和密码。',
+			invalidAuthError: '用户名或密码错误。',
+			usernameExistsError: '用户名已存在。',
+			ruleError: '用户名至少 3 位，密码至少 6 位。',
+			requestFailedPrefix: '请求失败，后端返回状态码 ',
+			serverUnavailableError: '无法连接登录服务器。',
+		},
+	} as Record<LanguageCode, LoginCopy>
+
+	const copy = computed(() : LoginCopy => {
+		return copyMap[currentLanguage.value]
+	})
+
+	const form = reactive({
+		username: '',
+		password: '',
+		errorMessage: '',
+		submitting: false,
+	} as LoginForm)
+
+	// After auth succeeds, move into the tabBar entry page instead of stacking a normal page.
+	const openStudyTab = () => {
+		uni.switchTab({
+			url: '/pages/study/study',
+		})
+	}
+
+	const setLanguage = (language : LanguageCode) => {
+		currentLanguage.value = language
+		setCurrentLanguage(language)
+	}
+
+	// Skip the auth screen when a username is already stored locally.
+	onReady(() => {
+		const savedUsername = uni.getStorageSync(LOGIN_USER_KEY) as string
+		if (savedUsername.length > 0) {
+			openStudyTab()
+		}
+	})
+
+	// Keep the UI mode explicit so one screen can drive both register and login flows.
+	const getAuthMode = (): AuthMode => {
+		return isRegisterMode.value ? 'register' : 'login'
+	}
+
+	// Build the backend route from the active screen mode.
+	const getRequestUrl = (): string => {
+		return getApiUrl('/api/auth/' + getAuthMode())
+	}
+
+	// Store the current user locally and redirect into the main app shell.
+	const handleAuthSuccess = (username: string, userType: string, token: string) => {
+		form.submitting = false
+		uni.setStorageSync(LOGIN_USER_KEY, username)
+		uni.setStorageSync(LOGIN_USER_TYPE_KEY, userType == 'expert' ? 'expert' : 'normal')
+		uni.setStorageSync(AUTH_TOKEN_KEY, token)
+
+		uni.showToast({
+			title: isRegisterMode.value ? copy.value.registrationSuccess : copy.value.loginSuccess,
+		})
+
+		openStudyTab()
+	}
+
+	// Flip between login/register without leaving stale password or error state behind.
+	const toggleMode = () => {
+		isRegisterMode.value = !isRegisterMode.value
+		form.errorMessage = ''
+		form.password = ''
+	}
+
+	// Submit the current credentials to the matching auth endpoint and map backend status codes to user-facing messages.
+	const submitAuthAction = () => {
+		const username = form.username.trim()
+		const password = form.password
+
+		if (username.length == 0 || password.length == 0) {
+			form.errorMessage = copy.value.requiredError
+			return
+		}
+
+		form.submitting = true
+		form.errorMessage = ''
+		const payload = {
+			username,
+			password,
+		} as LoginRequestPayload
+
+		uni.request({
+			url: getRequestUrl(),
+			method: 'POST',
+			timeout: 10000,
+			header: {
+				'Content-Type': 'application/json',
+			},
+			data: payload,
+			success: (res) => {
+				const data = res.data as any
+				if ((res.statusCode == 200 || res.statusCode == 201) && data != null && data.user != null && typeof data.token == 'string') {
+					handleAuthSuccess(username, String(data.user.userType || 'normal'), data.token)
+					return
+				}
+
+				if (res.statusCode == 401) {
+					form.errorMessage = copy.value.invalidAuthError
+					form.submitting = false
+					return
+				}
+
+				if (res.statusCode == 409) {
+					form.errorMessage = copy.value.usernameExistsError
+					form.submitting = false
+					return
+				}
+
+				if (res.statusCode == 400) {
+					form.errorMessage = copy.value.ruleError
+					form.submitting = false
+					return
+				}
+
+				form.errorMessage = copy.value.requestFailedPrefix + res.statusCode + '.'
+				form.submitting = false
+			},
+			fail: () => {
+				form.errorMessage = copy.value.serverUnavailableError
+				form.submitting = false
+			},
+			complete: () => {
+				if (form.submitting) {
+					form.submitting = false
+				}
+			},
+		})
+	}
+</script>
+
+<style>
+	.page {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		min-height: 100vh;
+		padding: 140px 28px 34px;
+		justify-content: space-between;
+		align-items: center;
+		background-color: #fff7ef;
+		background-image:
+			radial-gradient(circle at top right, rgba(92, 143, 180, 0.32) 0%, rgba(92, 143, 180, 0) 34%),
+			radial-gradient(circle at bottom left, rgba(225, 139, 112, 0.28) 0%, rgba(225, 139, 112, 0) 30%),
+			linear-gradient(180deg, #f7fbff 0%, #eef6fb 24%, #f9efe5 62%, #fff7ef 100%);
+	}
+
+	.language-switch {
+		position: absolute;
+		top: 28px;
+		right: 28px;
+		flex-direction: row;
+		padding: 4px;
+		border-radius: 14px;
+		background-color: rgba(255, 255, 255, 0.62);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(92, 143, 180, 0.12);
+		box-shadow: 0 10px 24px rgba(67, 96, 126, 0.08);
+	}
+
+	.language-button {
+		min-width: 74px;
+		height: 32px;
+		padding: 0 12px;
+		border-radius: 10px;
+		border-width: 0;
+		background-color: transparent;
+		color: #4b6476;
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.language-button-active {
+		background-color: rgba(92, 143, 180, 0.22);
+		color: #0f5d74;
+	}
+
+	.logo-frame {
+		width: 96px;
+		height: 96px;
+		border-radius: 22px;
+		background-color: rgba(255, 255, 255, 0.68);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.56);
+		justify-content: center;
+		align-items: center;
+		box-shadow: 0 16px 30px rgba(66, 91, 120, 0.1);
+	}
+
+	.logo {
+		width: 130px;
+		height: 130px;
+	}
+
+	.hero {
+		align-items: center;
+	}
+
+	.title {
+		font-size: 32px;
+		line-height: 38px;
+		font-weight: 700;
+		color: #1f2937;
+		text-align: center;
+	}
+
+	.subtitle {
+		margin-top: 18px;
+		font-size: 14px;
+		color: #6b7280;
+		text-align: center;
+	}
+
+	.card {
+		width: 100%;
+		padding: 16px 14px 14px;
+		border-radius: 18px;
+		background-color: rgba(255, 255, 255, 0.74);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.62);
+		box-shadow: 0 14px 30px rgba(56, 76, 99, 0.07);
+		backdrop-filter: blur(12px);
+	}
+
+	.field {
+		margin-bottom: 14px;
+	}
+
+	.hint {
+		margin-bottom: 10px;
+		font-size: 12px;
+		line-height: 18px;
+		color: #7b6d62;
+		text-align: center;
+	}
+
+	.input {
+		height: 44px;
+		width: 100%;
+		padding: 0 12px;
+		border-radius: 12px;
+		background-color: rgba(255, 248, 241, 0.96);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(203, 214, 224, 0.72);
+		font-size: 15px;
+		color: #243447;
+	}
+
+	.placeholder {
+		color: #8c98a4;
+	}
+
+	.error {
+		margin-bottom: 12px;
+		font-size: 13px;
+		color: #b45309;
+		text-align: center;
+	}
+
+	.submit {
+		width: 100%;
+		height: 40px;
+		border-radius: 12px;
+		border-width: 0;
+		background-image: linear-gradient(135deg, #0d7695 0%, #5c8fb4 100%);
+		color: #ffffff;
+		font-size: 16px;
+		font-weight: 600;
+		box-shadow: 0 12px 24px rgba(13, 118, 149, 0.22);
+	}
+
+	.toggle {
+		width: 100%;
+		height: 40px;
+		margin-top: 12px;
+		border-radius: 12px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(225, 139, 112, 0.4);
+		background-color: rgba(255, 243, 234, 0.92);
+		color: #9a5b43;
+		font-size: 15px;
+		font-weight: 600;
+	}
+</style>

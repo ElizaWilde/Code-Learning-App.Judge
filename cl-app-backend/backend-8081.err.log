@@ -1,0 +1,36 @@
+=8081 : 无法将“=8081”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如果包括路径，请确保路径正确，然后再试一次。
+所在位置 行:1 字符: 1
++ =8081; Set-Location ''f:\unishit\cl-app-backend''; node dist/server.j ...
++ ~~~~~
+    + CategoryInfo          : ObjectNotFound: (=8081:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+Set-Location : 找不到接受实际参数“f:\unishit\cl-app-backend”的位置形式参数。
+所在位置 行:1 字符: 8
++ =8081; Set-Location ''f:\unishit\cl-app-backend''; node dist/server.j ...
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Set-Location]，ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.SetLocationCommand
+ 
+node:fs:1349
+  const result = binding.mkdir(
+                         ^
+
+Error: EPERM: operation not permitted, mkdir 'C:\Users\21888\AppData\Local\CodeLearningApp'
+    at Object.mkdirSync (node:fs:1349:26)
+    at Object.<anonymous> (F:\unishit\cl-app-backend\dist\db.js:27:19)
+    at Module._compile (node:internal/modules/cjs/loader:1761:14)
+    at Object..js (node:internal/modules/cjs/loader:1893:10)
+    at Module.load (node:internal/modules/cjs/loader:1481:32)
+    at Module._load (node:internal/modules/cjs/loader:1300:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:245:24)
+    at Module.require (node:internal/modules/cjs/loader:1504:12)
+    at require (node:internal/modules/helpers:152:16) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'mkdir',
+  path: 'C:\\Users\\21888\\AppData\\Local\\CodeLearningApp'
+}
+
+Node.js v24.12.0

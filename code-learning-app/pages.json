@@ -1,0 +1,192 @@
+{
+	"pages": [ //pages数组中第一项表示应用启动页，参考：https://doc.dcloud.net.cn/uni-app-x/collocation/pagesjson.html
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "Home"
+			}
+		},
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "Login"
+			}
+		},
+		{
+			"path": "pages/study/study",
+			"style": {
+				"navigationBarTitleText": "Study"
+			}
+		},
+		{
+			"path": "pages/community/community",
+			"style": {
+				"navigationBarTitleText": "Community"
+			}
+		},
+		{
+			"path": "pages/communityCreate/communityCreate",
+			"style": {
+				"navigationBarTitleText": "Create Post"
+			}
+		},
+		{
+			"path": "pages/communityPost/communityPost",
+			"style": {
+				"navigationBarTitleText": "Post"
+			}
+		},
+		{
+			"path": "pages/task/task",
+			"style": {
+				"navigationBarTitleText": "Task"
+			}
+		},
+		{
+			"path": "pages/personal/personal",
+			"style": {
+				"navigationBarTitleText": "Personal Management"
+			}
+		},
+		{
+			"path": "pages/reminder-settings/reminder-settings",
+			"style": {
+				"navigationBarTitleText": "Reminder Settings"
+			}
+		},
+		{
+			"path": "pages/wrongQuestions/wrongQuestions",
+			"style": {
+				"navigationBarTitleText": "Wrong Question Collection"
+			}
+		},
+		{
+			"path": "pages/quest/quest",
+			"style": {
+				"navigationBarTitleText": "Quest"
+			}
+		},
+		{
+			"path": "pages/javascript/javascript",
+			"style": {
+				"navigationBarTitleText": "JavaScript"
+			}
+		},
+		{
+			"path": "pages/java/java",
+			"style": {
+				"navigationBarTitleText": "Java"
+			}
+		},
+		{
+			"path": "pages/postgresqlRedis/postgresqlRedis",
+			"style": {
+				"navigationBarTitleText": "PostgreSQL and Redis"
+			}
+		},
+		{
+			"path": "pages/aiBasics/aiBasics",
+			"style": {
+				"navigationBarTitleText": "AI Basic Knowledge"
+			}
+		},
+		{
+			"path": "pages/studyModule/studyModule",
+			"style": {
+				"navigationBarTitleText": "Study Module"
+			}
+		},
+		{
+			"path": "pages/javascriptSyntax/javascriptSyntax",
+			"style": {
+				"navigationBarTitleText": "JS Syntax and Data Types"
+			}
+		},
+		{
+			"path": "pages/javascriptFunctions/javascriptFunctions",
+			"style": {
+				"navigationBarTitleText": "JS Functions and Control Flow"
+			}
+		},
+		{
+			"path": "pages/javascriptAsync/javascriptAsync",
+			"style": {
+				"navigationBarTitleText": "JS Async JavaScript"
+			}
+		},
+		{
+			"path": "pages/javascriptDom/javascriptDom",
+			"style": {
+				"navigationBarTitleText": "JS DOM and Debugging"
+			}
+		},
+		{
+			"path": "pages/javascriptSyntaxPractice/javascriptSyntaxPractice",
+			"style": {
+				"navigationBarTitleText": "JS Syntax Practice"
+			}
+		},
+		{
+			"path": "pages/javascriptFunctionsPractice/javascriptFunctionsPractice",
+			"style": {
+				"navigationBarTitleText": "JS Functions Practice"
+			}
+		},
+		{
+			"path": "pages/javascriptAsyncPractice/javascriptAsyncPractice",
+			"style": {
+				"navigationBarTitleText": "JS Async Practice"
+			}
+		},
+		{
+			"path": "pages/javascriptDomPractice/javascriptDomPractice",
+			"style": {
+				"navigationBarTitleText": "JS DOM Practice"
+			}
+		},
+		{
+			"path": "pages/projectShowcase/projectShowcase",
+			"style": {
+				"navigationBarTitleText": "Project Showcase"
+			}
+		},
+		{
+			"path": "pages/todoApp/todoApp",
+			"style": {
+				"navigationBarTitleText": "Todo List App"
+			}
+		}
+	],
+	"tabBar": {
+		"color": "#715f52",
+		"selectedColor": "#0f5d74",
+		"backgroundColor": "#fff5ea",
+		"borderStyle": "black",
+		"fontSize": "11px",
+		"list": [
+			{
+				"pagePath": "pages/study/study",
+				"text": "Study"
+			},
+			{
+				"pagePath": "pages/task/task",
+				"text": "Task"
+			},
+			{
+				"pagePath": "pages/community/community",
+				"text": "Community"
+			},
+			{
+				"pagePath": "pages/personal/personal",
+				"text": "Personal"
+			}
+		]
+	},
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "uni-app x",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	},
+	"uniIdRouter": {}
+}

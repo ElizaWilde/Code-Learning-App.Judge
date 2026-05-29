@@ -1,0 +1,535 @@
+<!-- 功能：学习提醒设置页，管理提醒时间、开关、重复规则和本地通知配置。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="settings-card">
+			<view class="setting-item">
+				<view class="setting-header">
+					<text class="setting-label">{{ copy.reminderTime }}</text>
+					<text class="setting-value">{{ reminderTime }}</text>
+				</view>
+				<text class="setting-description">{{ copy.reminderTimeDescription }}</text>
+				<button class="setting-btn" @tap="pickTime">{{ copy.changeTime }}</button>
+			</view>
+
+			<view class="divider"></view>
+
+			<view class="setting-item">
+				<view class="setting-header">
+					<text class="setting-label">{{ copy.enableReminders }}</text>
+					<switch :checked="remindersEnabled" @change="toggleReminders($event.detail.value)" />
+				</view>
+				<text class="setting-description">{{ copy.enableRemindersDescription }}</text>
+			</view>
+
+			<view class="divider"></view>
+
+			<view class="setting-item">
+				<text class="setting-label">{{ copy.testReminder }}</text>
+				<text class="setting-description">{{ copy.testReminderDescription }}</text>
+				<button class="test-btn" @tap="testReminder">{{ copy.testNow }}</button>
+			</view>
+		</view>
+
+		<view class="info-card">
+			<text class="info-title">{{ copy.howItWorks }}</text>
+			<text class="info-text">{{ copy.infoOne }}</text>
+			<text class="info-text">{{ copy.infoTwo }}</text>
+			<text class="info-text">{{ copy.infoThree }}</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const REMINDER_TIME_KEY = 'reminderTime'
+	const REMINDERS_ENABLED_KEY = 'remindersEnabled'
+	const SCHEDULED_REMINDERS_KEY = 'scheduledReminders'
+
+	const reminderTime = ref('09:00')
+	const remindersEnabled = ref(false)
+	const notificationSupported = ref(false)
+	const notificationPermission = ref('default')
+	const currentLanguage = ref(getCurrentLanguage() as string)
+
+	const copyMap = {
+		en: {
+			eyebrow: 'Reminder Settings',
+			title: 'Daily Practice Reminder',
+			subtitle: 'Configure your daily coding practice reminders to stay consistent.',
+			reminderTime: 'Reminder Time',
+			reminderTimeDescription: 'Choose when you want to receive daily reminders.',
+			changeTime: 'Change Time',
+			enableReminders: 'Enable Reminders',
+			enableRemindersDescription: 'Turn daily reminders on or off.',
+			testReminder: 'Test Reminder',
+			testReminderDescription: 'See how your reminder will appear.',
+			testNow: 'Test Now',
+			howItWorks: 'How it works',
+			infoOne: '• You will receive a daily reminder at your chosen time',
+			infoTwo: '• Tap "Practice Now" to go directly to coding tasks',
+			infoThree: '• Tap "Later" to dismiss and be reminded tomorrow',
+			notificationTitle: 'Daily Practice Reminder',
+			notificationBody: 'Time for your daily coding practice. Open the app to continue.',
+			remindersDisabled: 'Reminders disabled',
+			reminderScheduled: 'Daily reminder scheduled',
+			reminderTimeSetPrefix: 'Reminder time set to ',
+			modalTitle: 'Daily Coding Practice',
+			later: 'Later',
+			practiceNow: 'Practice Now',
+			remindersAreDisabled: 'Reminders are disabled',
+		},
+		zh: {
+			eyebrow: '提醒设置',
+			title: '每日练习提醒',
+			subtitle: '设置你的每日编程练习提醒，保持学习节奏。',
+			reminderTime: '提醒时间',
+			reminderTimeDescription: '选择你希望接收每日提醒的时间。',
+			changeTime: '修改时间',
+			enableReminders: '开启提醒',
+			enableRemindersDescription: '打开或关闭每日提醒。',
+			testReminder: '测试提醒',
+			testReminderDescription: '预览提醒显示效果。',
+			testNow: '立即测试',
+			howItWorks: '使用说明',
+			infoOne: '• 你会在设定时间收到每日提醒',
+			infoTwo: '• 点击“立即练习”可直接进入刷题页',
+			infoThree: '• 点击“稍后”会关闭本次提醒，明天再提醒',
+			notificationTitle: '每日练习提醒',
+			notificationBody: '该进行今天的编程练习了，打开应用继续学习。',
+			remindersDisabled: '提醒已关闭',
+			reminderScheduled: '已设置每日提醒',
+			reminderTimeSetPrefix: '提醒时间已设置为 ',
+			modalTitle: '每日编程练习',
+			later: '稍后',
+			practiceNow: '立即练习',
+			remindersAreDisabled: '提醒当前已关闭',
+		},
+	}
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	let reminderTimeoutId: number | null = null
+	let swRegistration: ServiceWorkerRegistration | null = null
+
+	const isPlusRuntime = () => typeof plus !== 'undefined' && plus != null
+	const isWebNotificationAvailable = () => typeof window !== 'undefined' && typeof Notification !== 'undefined'
+	const isServiceWorkerAvailable = () => typeof navigator !== 'undefined' && 'serviceWorker' in navigator
+
+	const loadReminderSettings = () => {
+		const savedTime = uni.getStorageSync(REMINDER_TIME_KEY) as string
+		if (savedTime) {
+			reminderTime.value = savedTime
+		}
+
+		const savedEnabled = uni.getStorageSync(REMINDERS_ENABLED_KEY) as string
+		if (savedEnabled) {
+			remindersEnabled.value = savedEnabled === 'true'
+		}
+	}
+
+	const saveReminderSettings = () => {
+		uni.setStorageSync(REMINDER_TIME_KEY, reminderTime.value)
+		uni.setStorageSync(REMINDERS_ENABLED_KEY, remindersEnabled.value.toString())
+	}
+
+	const saveScheduledReminder = (nextReminder: number | null) => {
+		if (nextReminder === null) {
+			uni.setStorageSync(SCHEDULED_REMINDERS_KEY, '')
+			return
+		}
+
+		uni.setStorageSync(SCHEDULED_REMINDERS_KEY, JSON.stringify({
+			time: reminderTime.value,
+			enabled: remindersEnabled.value,
+			nextReminder
+		}))
+	}
+
+	const getNotificationTitle = () => copy.value.notificationTitle
+	const getNotificationBody = () => copy.value.notificationBody
+
+	const createOsNotification = async (title: string, body: string) => {
+		if (isPlusRuntime() && plus.push && plus.push.createMessage) {
+			try {
+				plus.push.createMessage(title, body, {
+					title,
+					content: body,
+					cover: false
+				})
+				return
+			} catch (error) {
+				console.warn('plus.push.createMessage failed', error)
+			}
+		}
+
+		if (swRegistration && swRegistration.showNotification) {
+			try {
+				await swRegistration.showNotification(title, {
+					body,
+					tag: 'daily-practice-reminder',
+					renotify: true,
+					data: { url: '/pages/task/task' }
+				})
+				return
+			} catch (error) {
+				console.warn('Service worker notification failed', error)
+			}
+		}
+
+		if (isWebNotificationAvailable() && Notification.permission === 'granted') {
+			new Notification(title, {
+				body,
+				tag: 'daily-practice-reminder'
+			})
+		}
+	}
+
+	const requestNotificationPermission = async () => {
+		if (isPlusRuntime()) {
+			notificationSupported.value = true
+			return
+		}
+
+		if (!isWebNotificationAvailable()) {
+			notificationSupported.value = false
+			return
+		}
+
+		notificationSupported.value = true
+		notificationPermission.value = Notification.permission
+		if (Notification.permission === 'default') {
+			try {
+				const result = await Notification.requestPermission()
+				notificationPermission.value = result
+			} catch (error) {
+				console.warn('Notification permission request failed', error)
+			}
+		}
+	}
+
+	const registerServiceWorker = async () => {
+		if (!isServiceWorkerAvailable() || !isWebNotificationAvailable()) {
+			return
+		}
+
+		try {
+			swRegistration = await navigator.serviceWorker.register('/sw.js')
+		} catch (error) {
+			console.warn('Service worker registration failed', error)
+		}
+	}
+
+	const clearReminderTimeout = () => {
+		if (reminderTimeoutId !== null) {
+			clearTimeout(reminderTimeoutId)
+			reminderTimeoutId = null
+		}
+	}
+
+	const getNextReminderTimestamp = (): number => {
+		const [hours, minutes] = reminderTime.value.split(':').map(Number)
+		const now = new Date()
+		const reminderDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes)
+		if (reminderDate.getTime() <= now.getTime()) {
+			reminderDate.setDate(reminderDate.getDate() + 1)
+		}
+		return reminderDate.getTime()
+	}
+
+	const scheduleReminders = async () => {
+		saveReminderSettings()
+		clearReminderTimeout()
+
+		if (!remindersEnabled.value) {
+			saveScheduledReminder(null)
+			uni.showToast({
+				title: copy.value.remindersDisabled,
+				icon: 'success',
+				duration: 2000
+			})
+			return
+		}
+
+		await requestNotificationPermission()
+		await registerServiceWorker()
+
+		const now = Date.now()
+		const nextReminder = getNextReminderTimestamp()
+		saveScheduledReminder(nextReminder)
+
+		const delay = Math.max(0, nextReminder - now)
+		reminderTimeoutId = setTimeout(async () => {
+			await createOsNotification(getNotificationTitle(), getNotificationBody())
+			saveScheduledReminder(getNextReminderTimestamp())
+			scheduleReminders()
+		}, delay) as unknown as number
+
+		uni.showToast({
+			title: copy.value.reminderScheduled,
+			icon: 'success',
+			duration: 2000
+		})
+	}
+
+	const syncReminderStatus = () => {
+		const reminderDataStr = uni.getStorageSync(SCHEDULED_REMINDERS_KEY) as string
+		if (!reminderDataStr) {
+			return
+		}
+
+		try {
+			const reminderData = JSON.parse(reminderDataStr)
+			if (typeof reminderData.time === 'string') {
+				reminderTime.value = reminderData.time
+			}
+			if (typeof reminderData.enabled === 'boolean') {
+				remindersEnabled.value = reminderData.enabled
+			}
+		} catch (error) {
+			// ignored
+		}
+	}
+
+	const tryTriggerPastReminder = async () => {
+		const reminderDataStr = uni.getStorageSync(SCHEDULED_REMINDERS_KEY) as string
+		if (!reminderDataStr) {
+			return
+		}
+
+		try {
+			const reminderData = JSON.parse(reminderDataStr)
+			const nextReminder = Number(reminderData.nextReminder || 0)
+			const now = Date.now()
+			if (reminderData.enabled && now >= nextReminder && now <= nextReminder + 5 * 60 * 1000) {
+				await createOsNotification(getNotificationTitle(), getNotificationBody())
+				saveScheduledReminder(getNextReminderTimestamp())
+				scheduleReminders()
+			}
+		} catch (error) {
+			// ignored
+		}
+	}
+
+	const pickTime = () => {
+		const timeOptions = []
+		for (let hour = 0; hour < 24; hour++) {
+			for (let minute = 0; minute < 60; minute += 30) {
+				const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+				timeOptions.push(timeString)
+			}
+		}
+
+		let currentIndex = 0
+		const currentTime = reminderTime.value
+		for (let i = 0; i < timeOptions.length; i++) {
+			if (timeOptions[i] >= currentTime) {
+				currentIndex = i
+				break
+			}
+		}
+
+		uni.showActionSheet({
+			itemList: timeOptions,
+			itemColor: '#6b4cd3',
+			success: (res) => {
+				reminderTime.value = timeOptions[res.tapIndex]
+				scheduleReminders()
+				uni.showToast({
+					title: copy.value.reminderTimeSetPrefix + reminderTime.value,
+					icon: 'success',
+					duration: 1500
+				})
+			},
+			fail: () => {
+				// User cancelled time selection
+			}
+		})
+	}
+
+	const toggleReminders = (enabled: boolean) => {
+		remindersEnabled.value = enabled
+		saveReminderSettings()
+		scheduleReminders()
+	}
+
+	const showReminderNotification = async () => {
+		if (!notificationSupported.value) {
+			uni.showModal({
+				title: copy.value.modalTitle,
+				content: getNotificationBody(),
+				showCancel: true,
+				cancelText: copy.value.later,
+				confirmText: copy.value.practiceNow,
+				success: (res) => {
+					if (res.confirm) {
+						uni.switchTab({ url: '/pages/task/task' })
+					}
+				}
+			})
+			return
+		}
+
+		await createOsNotification(getNotificationTitle(), getNotificationBody())
+	}
+
+	const testReminder = async () => {
+		if (remindersEnabled.value) {
+			await showReminderNotification()
+		} else {
+			uni.showToast({
+				title: copy.value.remindersAreDisabled,
+				icon: 'none'
+			})
+		}
+	}
+
+	onLoad(async () => {
+		currentLanguage.value = getCurrentLanguage()
+		loadReminderSettings()
+		syncReminderStatus()
+		await requestNotificationPermission()
+		await registerServiceWorker()
+		await tryTriggerPastReminder()
+		scheduleReminders()
+	})
+
+	onShow(async () => {
+		currentLanguage.value = getCurrentLanguage()
+		loadReminderSettings()
+		syncReminderStatus()
+		await tryTriggerPastReminder()
+		scheduleReminders()
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #f8f6ff;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #6b4cd3;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #1b1d31;
+	}
+
+	.subtitle {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #666b86;
+	}
+
+	.settings-card {
+		padding: 20px 16px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 26px rgba(65, 53, 130, 0.08);
+	}
+
+	.setting-item {
+		margin-bottom: 8px;
+	}
+
+	.setting-header {
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 6px;
+	}
+
+	.setting-label {
+		font-size: 16px;
+		font-weight: 600;
+		color: #171925;
+	}
+
+	.setting-value {
+		font-size: 16px;
+		font-weight: 700;
+		color: #6b4cd3;
+	}
+
+	.setting-description {
+		font-size: 13px;
+		line-height: 18px;
+		color: #666b86;
+		margin-bottom: 12px;
+	}
+
+	.setting-btn {
+		width: 100%;
+		height: 40px;
+		border-radius: 10px;
+		border-width: 1px;
+		border-color: #6b4cd3;
+		background-color: transparent;
+		color: #6b4cd3;
+		font-size: 14px;
+		font-weight: 600;
+	}
+
+	.test-btn {
+		width: 100%;
+		height: 36px;
+		border-radius: 8px;
+		border-width: 1px;
+		border-color: #6b4cd3;
+		background-color: transparent;
+		color: #6b4cd3;
+		font-size: 14px;
+		font-weight: 500;
+	}
+
+	.divider {
+		height: 1px;
+		background-color: #f0f0f0;
+		margin: 16px 0;
+	}
+
+	.info-card {
+		padding: 18px 16px;
+		margin-top: 16px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 26px rgba(65, 53, 130, 0.08);
+	}
+
+	.info-title {
+		font-size: 16px;
+		font-weight: 600;
+		color: #171925;
+		margin-bottom: 12px;
+	}
+
+	.info-text {
+		font-size: 13px;
+		line-height: 20px;
+		color: #666b86;
+		margin-bottom: 6px;
+	}
+</style>

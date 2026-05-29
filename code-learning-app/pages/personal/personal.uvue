@@ -1,0 +1,467 @@
+<!-- 功能：个人中心页，展示用户信息、学习统计、快捷入口和账号操作。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="profile-card">
+			<view class="profile-head">
+				<text class="name">{{ username }}</text>
+				<view v-if="userType == 'expert'" class="medal-icon" aria-label="expert badge">
+					<text class="medal-star">★</text>
+				</view>
+			</view>
+			<text class="role">{{ copy.role }}</text>
+		</view>
+
+		<view class="checkin-card">
+			<view class="checkin-summary">
+				<text class="checkin-label">{{ copy.currentStreak }}</text>
+				<text class="checkin-value">{{ continuousDays }}</text>
+				<text class="checkin-unit">{{ copy.days }}</text>
+				<text class="checkin-note">{{ totalCheckInDays }} {{ copy.totalCheckInDays }}</text>
+			</view>
+
+			<view class="heatmap-section">
+				<text class="heatmap-title">{{ copy.practiceHeatmap }}</text>
+				<text class="heatmap-copy">{{ copy.last12Weeks }}</text>
+
+				<view class="heatmap-grid">
+					<view class="heatmap-column" v-for="(column, columnIndex) in heatmapColumns" :key="columnIndex">
+						<view
+							v-for="cell in column"
+							:key="cell.key"
+							class="heatmap-cell"
+							:class="'level-' + cell.level"
+						/>
+					</view>
+				</view>
+			</view>
+		</view>
+
+		<view class="option-card" @tap="goToReminderSettings">
+			<text class="option-title">{{ copy.dailyReminderTitle }}</text>
+			<text class="option-copy">{{ copy.dailyReminderCopy }}</text>
+			<view class="arrow-icon">></view>
+		</view>
+
+		<view class="option-card" @tap="goToWrongQuestions">
+			<text class="option-title">{{ copy.wrongQuestionsTitle }}</text>
+			<text class="option-copy">{{ copy.wrongQuestionsCopy }}</text>
+			<text class="option-meta">{{ totalWrongQuestionCount }} {{ totalWrongQuestionCount == 1 ? copy.questionSingular : copy.questionPlural }}</text>
+			<view class="arrow-icon">></view>
+		</view>
+
+		<button class="logout" @tap="logout">{{ copy.logout }}</button>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getApiUrl } from '../../utils/api'
+	import { getCheckInSummary } from '../../utils/checkIn.uts'
+	import { getCurrentUserType } from '../../utils/communityPosts.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+	import { getTotalWrongQuestionCount } from '../../utils/wrongQuestions.uts'
+
+	const LOGIN_USER_KEY = 'loggedInUser'
+	const LOGIN_USER_TYPE_KEY = 'loggedInUserType'
+	const AUTH_TOKEN_KEY = 'authToken'
+	const username = ref('Guest')
+	const userType = ref('normal')
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const totalWrongQuestionCount = ref(0)
+	const continuousDays = ref(0)
+	const totalCheckInDays = ref(0)
+	const heatmapColumns = ref([] as any[])
+	const copyMap = {
+		en: {
+			eyebrow: 'Personal',
+			title: 'Manage your profile',
+			subtitle: 'Review your account, goals, and learning preferences in one place.',
+			role: 'Active learner',
+			currentStreak: 'Current streak',
+			days: 'days',
+			totalCheckInDays: 'total check-in days',
+			practiceHeatmap: 'Practice heatmap',
+			last12Weeks: 'Last 12 weeks',
+			dailyReminderTitle: 'Daily Practice Reminder',
+			dailyReminderCopy: 'Set up daily reminders to maintain your coding practice routine.',
+			wrongQuestionsTitle: 'Wrong Question Collection',
+			wrongQuestionsCopy: 'Review your own wrong practice questions from every learning path.',
+			questionSingular: 'question to review',
+			questionPlural: 'questions to review',
+			logout: 'Log Out',
+		},
+		zh: {
+			eyebrow: '个人',
+			title: '管理你的资料',
+			subtitle: '在一个页面中查看你的账号、目标和学习偏好。',
+			role: '活跃学习者',
+			currentStreak: '当前连续打卡',
+			days: '天',
+			totalCheckInDays: '累计打卡天数',
+			practiceHeatmap: '练习热力图',
+			last12Weeks: '最近 12 周',
+			dailyReminderTitle: '每日练习提醒',
+			dailyReminderCopy: '设置每日提醒，保持你的编程练习节奏。',
+			wrongQuestionsTitle: '错题集',
+			wrongQuestionsCopy: '回顾你在各学习路径中的错题。',
+			questionSingular: '道题待复习',
+			questionPlural: '道题待复习',
+			logout: '退出登录',
+		},
+	} as any
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const loadWrongQuestionCollection = () => {
+		totalWrongQuestionCount.value = getTotalWrongQuestionCount()
+	}
+
+	const loadCheckInSummary = () => {
+		const summary = getCheckInSummary()
+		continuousDays.value = summary.streak
+		totalCheckInDays.value = summary.totalDays
+
+		const columns = [] as any[]
+		let currentColumn = [] as any[]
+		for (const cell of summary.cells) {
+			currentColumn.push(cell)
+			if (currentColumn.length == 7) {
+				columns.push(currentColumn)
+				currentColumn = [] as any[]
+			}
+		}
+
+		if (currentColumn.length > 0) {
+			columns.push(currentColumn)
+		}
+
+		heatmapColumns.value = columns
+	}
+
+	const goToReminderSettings = () => {
+		uni.navigateTo({
+			url: '/pages/reminder-settings/reminder-settings'
+		})
+	}
+
+	const goToWrongQuestions = () => {
+		uni.navigateTo({
+			url: '/pages/wrongQuestions/wrongQuestions'
+		})
+	}
+
+	const refreshProfile = () => {
+		const token = uni.getStorageSync(AUTH_TOKEN_KEY) as string
+		const savedUsername = (uni.getStorageSync(LOGIN_USER_KEY) as string).trim()
+		if (token.length == 0) {
+			if (savedUsername.length == 0) {
+				userType.value = getCurrentUserType()
+				return
+			}
+
+			uni.request({
+				url: getApiUrl('/api/auth/profile/' + encodeURIComponent(savedUsername)),
+				method: 'GET',
+				success: (res) => {
+					const data = res.data as any
+					if (res.statusCode == 200 && data != null && data.user != null) {
+						username.value = String(data.user.username || savedUsername)
+						userType.value = String(data.user.userType || 'normal')
+						uni.setStorageSync(LOGIN_USER_KEY, username.value)
+						uni.setStorageSync(LOGIN_USER_TYPE_KEY, userType.value)
+						return
+					}
+
+					userType.value = getCurrentUserType()
+				},
+				fail: () => {
+					userType.value = getCurrentUserType()
+				},
+			})
+			return
+		}
+
+		uni.request({
+			url: getApiUrl('/api/auth/me'),
+			method: 'GET',
+			header: {
+				'Authorization': 'Bearer ' + token,
+			},
+			success: (res) => {
+				const data = res.data as any
+				if (res.statusCode == 200 && data != null && data.user != null) {
+					username.value = String(data.user.username || username.value)
+					userType.value = String(data.user.userType || 'normal')
+					uni.setStorageSync(LOGIN_USER_KEY, username.value)
+					uni.setStorageSync(LOGIN_USER_TYPE_KEY, userType.value)
+				}
+			},
+			fail: () => {
+				userType.value = getCurrentUserType()
+			},
+		})
+	}
+
+	onLoad(() => {
+		const savedUsername = uni.getStorageSync(LOGIN_USER_KEY) as string
+		if (savedUsername.length > 0) {
+			username.value = savedUsername
+		}
+		userType.value = getCurrentUserType()
+		refreshProfile()
+		loadWrongQuestionCollection()
+		loadCheckInSummary()
+	})
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+		userType.value = getCurrentUserType()
+		refreshProfile()
+		loadWrongQuestionCollection()
+		loadCheckInSummary()
+	})
+
+	const logout = () => {
+		uni.removeStorageSync(LOGIN_USER_KEY)
+		uni.removeStorageSync(LOGIN_USER_TYPE_KEY)
+		uni.removeStorageSync(AUTH_TOKEN_KEY)
+		uni.reLaunch({
+			url: '/pages/login/login',
+		})
+	}
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #f8f6ff;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #6b4cd3;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #1b1d31;
+	}
+
+	.subtitle {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #666b86;
+	}
+
+	.profile-card {
+		padding: 22px 18px;
+		border-radius: 24px;
+		background-image: linear-gradient(180deg, #6a5cff 0%, #9f89f7 100%);
+		box-shadow: 0 14px 32px rgba(85, 68, 180, 0.12);
+	}
+
+	.profile-head {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.name {
+		font-size: 24px;
+		font-weight: 700;
+		color: #ffffff;
+	}
+
+	.medal-icon {
+		margin-left: 10px;
+		width: 26px;
+		height: 26px;
+		border-radius: 13px;
+		align-items: center;
+		justify-content: center;
+		background-image: linear-gradient(180deg, #ffe9a8 0%, #f7c948 100%);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 248, 214, 0.9);
+		box-shadow: 0 4px 10px rgba(107, 76, 211, 0.18);
+	}
+
+	.medal-star {
+		font-size: 13px;
+		font-weight: 700;
+		color: #8a6200;
+	}
+
+	.role {
+		margin-top: 8px;
+		font-size: 14px;
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	.checkin-card {
+		margin-top: 14px;
+		padding: 18px 16px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 26px rgba(65, 53, 130, 0.08);
+		flex-direction: row;
+	}
+
+	.checkin-summary {
+		width: 104px;
+		padding-right: 12px;
+		justify-content: center;
+	}
+
+	.checkin-label {
+		font-size: 12px;
+		font-weight: 600;
+		letter-spacing: 0.5px;
+		text-transform: uppercase;
+		color: #7b819a;
+	}
+
+	.checkin-value {
+		margin-top: 8px;
+		font-size: 40px;
+		line-height: 42px;
+		font-weight: 700;
+		color: #171925;
+	}
+
+	.checkin-unit {
+		margin-top: 4px;
+		font-size: 14px;
+		font-weight: 600;
+		color: #5b46c8;
+	}
+
+	.checkin-note {
+		margin-top: 10px;
+		font-size: 12px;
+		line-height: 18px;
+		color: #666b86;
+	}
+
+	.heatmap-section {
+		flex: 1;
+	}
+
+	.heatmap-title {
+		font-size: 16px;
+		font-weight: 600;
+		color: #171925;
+	}
+
+	.heatmap-copy {
+		margin-top: 4px;
+		font-size: 12px;
+		color: #7b819a;
+	}
+
+	.heatmap-grid {
+		margin-top: 14px;
+		flex-direction: row;
+		align-items: flex-end;
+		justify-content: space-between;
+	}
+
+	.heatmap-column {
+		flex-direction: column;
+	}
+
+	.heatmap-cell {
+		width: 10px;
+		height: 10px;
+		margin-bottom: 4px;
+		border-radius: 3px;
+		background-color: #ece8fb;
+	}
+
+	.level-0 {
+		background-color: #ece8fb;
+	}
+
+	.level-1 {
+		background-color: #ddd5ff;
+	}
+
+	.level-2 {
+		background-color: #bcabff;
+	}
+
+	.level-3 {
+		background-color: #8f74ff;
+	}
+
+	.level-4 {
+		background-color: #5a3dff;
+	}
+
+	.option-card {
+		padding: 18px 16px;
+		margin-top: 14px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 26px rgba(65, 53, 130, 0.08);
+		position: relative;
+	}
+
+	.arrow-icon {
+		position: absolute;
+		right: 16px;
+		top: 50%;
+		transform: translateY(-50%);
+		font-size: 18px;
+		font-weight: bold;
+		color: #6b4cd3;
+	}
+
+	.option-title {
+		font-size: 16px;
+		font-weight: 600;
+		color: #171925;
+	}
+
+	.option-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #666b86;
+	}
+
+	.option-meta {
+		font-size: 13px;
+		margin-top: 8px;
+		font-weight: 600;
+		color: #5b46c8;
+	}
+
+	.logout {
+		margin-top: 20px;
+		height: 42px;
+		border-radius: 14px;
+		border-width: 0;
+		background-color: #2f243f;
+		color: #ffffff;
+		font-size: 15px;
+		font-weight: 600;
+	}
+</style>

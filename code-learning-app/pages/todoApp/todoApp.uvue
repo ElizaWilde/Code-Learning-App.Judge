@@ -1,0 +1,589 @@
+<!-- 功能：Todo 实战项目页，演示任务清单应用的功能、代码思路和交互流程。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="input-section">
+			<input
+				v-model="newTodoText"
+				class="todo-input"
+				:placeholder="copy.todoPlaceholder"
+				@confirm="addTodo"
+			/>
+			<button class="add-button" @tap="addTodo">{{ copy.add }}</button>
+		</view>
+
+		<view class="filter-section">
+			<button class="filter-btn" :class="{ active: filter === 'all' }" @tap="setFilter('all')">{{ copy.all }}</button>
+			<button class="filter-btn" :class="{ active: filter === 'active' }" @tap="setFilter('active')">{{ copy.active }}</button>
+			<button class="filter-btn" :class="{ active: filter === 'completed' }" @tap="setFilter('completed')">{{ copy.completed }}</button>
+		</view>
+
+		<view class="stats-section">
+			<text class="stat-item">{{ allTodos.length }} {{ copy.total }}</text>
+			<text class="stat-divider">•</text>
+			<text class="stat-item">{{ activeTodos.length }} {{ copy.activeLower }}</text>
+			<text class="stat-divider">•</text>
+			<text class="stat-item">{{ completedTodos.length }} {{ copy.done }}</text>
+		</view>
+
+		<view class="todos-list">
+			<view v-if="filteredTodos.length === 0" class="empty-state">
+				<text class="empty-icon">○</text>
+				<text class="empty-text">{{ getEmptyMessage() }}</text>
+			</view>
+
+			<view
+				v-for="(todo, index) in filteredTodos"
+				:key="todo.id"
+				class="todo-item"
+				:class="{ completed: todo.completed }"
+			>
+				<view class="todo-checkbox-wrapper" @tap="toggleTodo(index)">
+					<view class="todo-checkbox" :class="{ checked: todo.completed }">
+						<text v-if="todo.completed" class="check-mark">✓</text>
+					</view>
+				</view>
+
+				<view class="todo-content">
+					<text class="todo-text">{{ todo.text }}</text>
+					<text class="todo-meta">{{ formatTodoTime(todo.createdAt) }}</text>
+				</view>
+
+				<button class="delete-btn" @tap="deleteTodo(index)">×</button>
+			</view>
+		</view>
+
+		<view v-if="allTodos.length > 0" class="action-section">
+			<button class="clear-btn" @tap="clearCompleted">{{ copy.clearCompleted }}</button>
+		</view>
+
+		<view class="tips-section">
+			<text class="tips-title">{{ copy.howToUse }}</text>
+			<text class="tip-item">{{ copy.tipOne }}</text>
+			<text class="tip-item">{{ copy.tipTwo }}</text>
+			<text class="tip-item">{{ copy.tipThree }}</text>
+			<text class="tip-item">{{ copy.tipFour }}</text>
+			<text class="tip-item">{{ copy.tipFive }}</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	type Todo = {
+		id: string
+		text: string
+		completed: boolean
+		createdAt: number
+	}
+
+	const TODOS_STORAGE_KEY = 'todoAppTodos'
+
+	const newTodoText = ref('')
+	const allTodos = ref([] as Todo[])
+	const filter = ref('all' as 'all' | 'active' | 'completed')
+	const currentLanguage = ref(getCurrentLanguage() as string)
+
+	const copyMap = {
+		en: {
+			eyebrow: 'Project: JavaScript',
+			title: 'Todo List App',
+			subtitle: 'Learn DOM manipulation, events, and localStorage',
+			todoPlaceholder: 'What needs to be done?',
+			add: 'Add',
+			all: 'All',
+			active: 'Active',
+			completed: 'Completed',
+			total: 'total',
+			activeLower: 'active',
+			done: 'done',
+			clearCompleted: 'Clear Completed',
+			howToUse: 'How to use:',
+			tipOne: '• Type a task and press Enter or tap Add',
+			tipTwo: '• Tap the circle to mark tasks complete',
+			tipThree: '• Tap × to delete a task',
+			tipFour: '• Use filters to focus on what matters',
+			tipFive: '• Your todos are saved automatically',
+			enterTask: 'Please enter a task',
+			taskAdded: 'Task added',
+			taskDeleted: 'Task deleted',
+			clearTitle: 'Clear completed tasks?',
+			clearContentPrefix: 'This will delete ',
+			clearContentMiddle: ' completed task',
+			clearContentSuffix: '.',
+			clear: 'Clear',
+			cancel: 'Cancel',
+			cleared: 'Completed tasks cleared',
+			justNow: 'Just now',
+			minutesAgo: 'm ago',
+			hoursAgo: 'h ago',
+			daysAgo: 'd ago',
+			emptyActive: 'All tasks completed!',
+			emptyCompleted: 'No completed tasks yet',
+			emptyDefault: 'No tasks yet. Add one to get started!',
+			navTitle: 'Todo List App',
+		},
+		zh: {
+			eyebrow: '项目：JavaScript',
+			title: '待办清单应用',
+			subtitle: '练习 DOM 操作、事件处理和 localStorage',
+			todoPlaceholder: '要做什么？',
+			add: '添加',
+			all: '全部',
+			active: '未完成',
+			completed: '已完成',
+			total: '总计',
+			activeLower: '未完成',
+			done: '完成',
+			clearCompleted: '清除已完成',
+			howToUse: '使用说明：',
+			tipOne: '• 输入任务后按回车或点击添加',
+			tipTwo: '• 点击圆框标记任务完成',
+			tipThree: '• 点击 × 删除任务',
+			tipFour: '• 使用筛选器聚焦当前任务',
+			tipFive: '• 你的待办会自动保存',
+			enterTask: '请输入任务内容',
+			taskAdded: '任务已添加',
+			taskDeleted: '任务已删除',
+			clearTitle: '清除已完成任务？',
+			clearContentPrefix: '这将删除 ',
+			clearContentMiddle: ' 个已完成任务',
+			clearContentSuffix: '。',
+			clear: '清除',
+			cancel: '取消',
+			cleared: '已清除完成任务',
+			justNow: '刚刚',
+			minutesAgo: '分钟前',
+			hoursAgo: '小时前',
+			daysAgo: '天前',
+			emptyActive: '所有任务都完成了！',
+			emptyCompleted: '还没有已完成任务',
+			emptyDefault: '还没有任务，先添加一个吧！',
+			navTitle: '待办清单应用',
+		},
+	}
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const activeTodos = computed(() => allTodos.value.filter(t => !t.completed))
+	const completedTodos = computed(() => allTodos.value.filter(t => t.completed))
+
+	const filteredTodos = computed(() => {
+		switch (filter.value) {
+			case 'active':
+				return activeTodos.value
+			case 'completed':
+				return completedTodos.value
+			default:
+				return allTodos.value
+		}
+	})
+
+	const loadTodos = () => {
+		const stored = uni.getStorageSync(TODOS_STORAGE_KEY)
+		if (stored && typeof stored === 'string') {
+			try {
+				allTodos.value = JSON.parse(stored) as Todo[]
+			} catch (e) {
+				allTodos.value = []
+			}
+		}
+	}
+
+	const saveTodos = () => {
+		uni.setStorageSync(TODOS_STORAGE_KEY, JSON.stringify(allTodos.value))
+	}
+
+	const addTodo = () => {
+		const trimmed = newTodoText.value.trim()
+		if (trimmed.length === 0) {
+			uni.showToast({
+				title: copy.value.enterTask,
+				icon: 'none',
+				duration: 1500
+			})
+			return
+		}
+
+		const newTodo: Todo = {
+			id: 'todo-' + Date.now(),
+			text: trimmed,
+			completed: false,
+			createdAt: Date.now()
+		}
+
+		allTodos.value.unshift(newTodo)
+		newTodoText.value = ''
+		saveTodos()
+
+		uni.showToast({
+			title: copy.value.taskAdded,
+			icon: 'success',
+			duration: 1000
+		})
+	}
+
+	const toggleTodo = (index: number) => {
+		const todo = filteredTodos.value[index]
+		const fullIndex = allTodos.value.findIndex(t => t.id === todo.id)
+		if (fullIndex !== -1) {
+			allTodos.value[fullIndex].completed = !allTodos.value[fullIndex].completed
+			saveTodos()
+		}
+	}
+
+	const deleteTodo = (index: number) => {
+		const todo = filteredTodos.value[index]
+		const fullIndex = allTodos.value.findIndex(t => t.id === todo.id)
+		if (fullIndex !== -1) {
+			allTodos.value.splice(fullIndex, 1)
+			saveTodos()
+
+			uni.showToast({
+				title: copy.value.taskDeleted,
+				icon: 'success',
+				duration: 1000
+			})
+		}
+	}
+
+	const clearCompleted = () => {
+		const count = completedTodos.value.length
+		const content = currentLanguage.value == 'zh'
+			? copy.value.clearContentPrefix + count + copy.value.clearContentMiddle + copy.value.clearContentSuffix
+			: copy.value.clearContentPrefix + count + copy.value.clearContentMiddle + (count !== 1 ? 's' : '') + copy.value.clearContentSuffix
+
+		uni.showModal({
+			title: copy.value.clearTitle,
+			content,
+			confirmText: copy.value.clear,
+			cancelText: copy.value.cancel,
+			success: (res) => {
+				if (res.confirm) {
+					allTodos.value = activeTodos.value
+					saveTodos()
+					uni.showToast({
+						title: copy.value.cleared,
+						icon: 'success',
+						duration: 1500
+					})
+				}
+			}
+		})
+	}
+
+	const setFilter = (newFilter: 'all' | 'active' | 'completed') => {
+		filter.value = newFilter
+	}
+
+	const formatTodoTime = (timestamp: number): string => {
+		const date = new Date(timestamp)
+		const now = new Date()
+		const diff = now.getTime() - date.getTime()
+
+		const minutes = Math.floor(diff / 60000)
+		const hours = Math.floor(diff / 3600000)
+		const days = Math.floor(diff / 86400000)
+
+		if (minutes < 1) return copy.value.justNow
+		if (minutes < 60) return minutes + copy.value.minutesAgo
+		if (hours < 24) return hours + copy.value.hoursAgo
+		if (days < 7) return days + copy.value.daysAgo
+
+		return date.toLocaleDateString()
+	}
+
+	const getEmptyMessage = (): string => {
+		switch (filter.value) {
+			case 'active':
+				return copy.value.emptyActive
+			case 'completed':
+				return copy.value.emptyCompleted
+			default:
+				return copy.value.emptyDefault
+		}
+	}
+
+	onLoad(() => {
+		currentLanguage.value = getCurrentLanguage()
+		loadTodos()
+		uni.setNavigationBarTitle({
+			title: copy.value.navTitle
+		})
+	})
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+		uni.setNavigationBarTitle({
+			title: copy.value.navTitle
+		})
+	})
+
+	onHide(() => {
+		saveTodos()
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background: linear-gradient(180deg, #fef3c7 0%, #f9fafb 50%);
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 12px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #b45309;
+	}
+
+	.title {
+		margin-top: 8px;
+		font-size: 32px;
+		line-height: 40px;
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.subtitle {
+		margin-top: 8px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #6b7280;
+	}
+
+	.input-section {
+		margin-top: 20px;
+		flex-direction: row;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.todo-input {
+		flex: 1;
+		height: 48px;
+		padding: 12px 16px;
+		border-radius: 12px;
+		border-width: 2px;
+		border-style: solid;
+		border-color: #fbbf24;
+		background-color: #ffffff;
+		font-size: 15px;
+		color: #111827;
+	}
+
+	.add-button {
+		width: 48px;
+		height: 48px;
+		border-radius: 12px;
+		border-width: 0;
+		background-color: #f59e0b;
+		color: #ffffff;
+		font-size: 18px;
+		font-weight: 700;
+	}
+
+	.filter-section {
+		margin-top: 16px;
+		flex-direction: row;
+		gap: 8px;
+		justify-content: center;
+	}
+
+	.filter-btn {
+		padding: 8px 16px;
+		border-radius: 8px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: #e5e7eb;
+		background-color: #ffffff;
+		color: #6b7280;
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.filter-btn.active {
+		border-color: #f59e0b;
+		background-color: #f59e0b;
+		color: #ffffff;
+	}
+
+	.stats-section {
+		margin-top: 16px;
+		padding: 12px 16px;
+		border-radius: 12px;
+		background-color: rgba(245, 158, 11, 0.1);
+		flex-direction: row;
+		justify-content: center;
+		align-items: center;
+	}
+
+	.stat-item {
+		font-size: 13px;
+		font-weight: 600;
+		color: #92400e;
+	}
+
+	.stat-divider {
+		margin: 0 8px;
+		color: #d97706;
+	}
+
+	.todos-list {
+		margin-top: 20px;
+	}
+
+	.empty-state {
+		padding: 40px 20px;
+		text-align: center;
+	}
+
+	.empty-icon {
+		font-size: 48px;
+		color: #d1d5db;
+	}
+
+	.empty-text {
+		display: block;
+		margin-top: 12px;
+		font-size: 16px;
+		color: #9ca3af;
+		font-weight: 600;
+	}
+
+	.todo-item {
+		padding: 16px 14px;
+		margin-bottom: 10px;
+		border-radius: 12px;
+		background-color: #ffffff;
+		flex-direction: row;
+		align-items: center;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+	}
+
+	.todo-item.completed {
+		opacity: 0.7;
+		background-color: #f3f4f6;
+	}
+
+	.todo-checkbox-wrapper {
+		margin-right: 12px;
+		width: 32px;
+		height: 32px;
+		justify-content: center;
+		align-items: center;
+	}
+
+	.todo-checkbox {
+		width: 24px;
+		height: 24px;
+		border-radius: 6px;
+		border-width: 2px;
+		border-style: solid;
+		border-color: #fbbf24;
+		background-color: #ffffff;
+		justify-content: center;
+		align-items: center;
+	}
+
+	.todo-checkbox.checked {
+		background-color: #f59e0b;
+		border-color: #f59e0b;
+	}
+
+	.check-mark {
+		font-size: 16px;
+		color: #ffffff;
+		font-weight: 700;
+	}
+
+	.todo-content {
+		flex: 1;
+		flex-direction: column;
+	}
+
+	.todo-text {
+		font-size: 15px;
+		font-weight: 600;
+		color: #111827;
+	}
+
+	.todo-item.completed .todo-text {
+		color: #9ca3af;
+		text-decoration: line-through;
+	}
+
+	.todo-meta {
+		margin-top: 4px;
+		font-size: 12px;
+		color: #d1d5db;
+	}
+
+	.delete-btn {
+		width: 32px;
+		height: 32px;
+		margin-left: 8px;
+		border-radius: 6px;
+		border-width: 0;
+		background-color: rgba(255, 0, 0, 0.1);
+		color: #ef4444;
+		font-size: 20px;
+		font-weight: 700;
+	}
+
+	.action-section {
+		margin-top: 20px;
+		padding: 16px;
+		text-align: center;
+	}
+
+	.clear-btn {
+		width: 100%;
+		height: 44px;
+		border-radius: 10px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: #fee2e2;
+		background-color: #fecaca;
+		color: #991b1b;
+		font-size: 15px;
+		font-weight: 600;
+	}
+
+	.tips-section {
+		margin-top: 24px;
+		padding: 16px;
+		border-radius: 12px;
+		background-color: rgba(59, 130, 246, 0.1);
+		border-width: 1px;
+		border-style: solid;
+		border-color: #bfdbfe;
+	}
+
+	.tips-title {
+		font-size: 14px;
+		font-weight: 700;
+		color: #1e40af;
+		margin-bottom: 10px;
+	}
+
+	.tip-item {
+		font-size: 13px;
+		line-height: 20px;
+		color: #3b82f6;
+		margin-bottom: 6px;
+	}
+</style>

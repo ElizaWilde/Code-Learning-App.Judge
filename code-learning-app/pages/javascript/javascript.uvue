@@ -1,0 +1,321 @@
+<!-- 功能：JavaScript 学习总览页，展示语法、函数、DOM、异步等学习模块。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">JavaScript</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="summary-card">
+			<text class="summary-title">{{ copy.whatYouWillLearn }}</text>
+			<text class="summary-copy">{{ copy.summary }}</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">{{ copy.modules }}</text>
+			<view class="lesson-card" @tap="openModule('javascript-syntax')">
+				<view class="lesson-header">
+					<text class="lesson-title">{{ copy.module1Title }}</text>
+					<text v-if="syntaxScore == 3" class="status-done">{{ copy.completed }}</text>
+				</view>
+				<text class="lesson-copy">{{ copy.module1Copy }}</text>
+				<text v-if="syntaxScore > 0 && syntaxScore < 3" class="status-progress">{{ copy.bestScore }} {{ syntaxScore }}/3</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('javascript-functions')">
+				<view class="lesson-header">
+					<text class="lesson-title">{{ copy.module2Title }}</text>
+					<text v-if="functionsScore == 3" class="status-done">{{ copy.completed }}</text>
+				</view>
+				<text class="lesson-copy">{{ copy.module2Copy }}</text>
+				<text v-if="functionsScore > 0 && functionsScore < 3" class="status-progress">{{ copy.bestScore }} {{ functionsScore }}/3</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('javascript-async')">
+				<view class="lesson-header">
+					<text class="lesson-title">{{ copy.module3Title }}</text>
+					<text v-if="asyncScore == 3" class="status-done">{{ copy.completed }}</text>
+				</view>
+				<text class="lesson-copy">{{ copy.module3Copy }}</text>
+				<text v-if="asyncScore > 0 && asyncScore < 3" class="status-progress">{{ copy.bestScore }} {{ asyncScore }}/3</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('javascript-dom')">
+				<view class="lesson-header">
+					<text class="lesson-title">{{ copy.module4Title }}</text>
+					<text v-if="domScore == 3" class="status-done">{{ copy.completed }}</text>
+				</view>
+				<text class="lesson-copy">{{ copy.module4Copy }}</text>
+				<text v-if="domScore > 0 && domScore < 3" class="status-progress">{{ copy.bestScore }} {{ domScore }}/3</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="section-title">{{ copy.projectCases }}</text>
+			<view class="project-card" @tap="openProject('js-todo-app')">
+				<view class="project-header">
+					<text class="project-title">Todo List App</text>
+					<text class="project-badge">{{ copy.intermediate }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project1Copy }}</text>
+				<text class="project-tech">DOM · Events · localStorage</text>
+			</view>
+			<view class="project-card" @tap="openProject('js-weather-app')">
+				<view class="project-header">
+					<text class="project-title">Weather Dashboard</text>
+					<text class="project-badge">{{ copy.intermediate }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project2Copy }}</text>
+				<text class="project-tech">Fetch API · async/await · DOM</text>
+			</view>
+			<view class="project-card" @tap="openProject('js-calculator')">
+				<view class="project-header">
+					<text class="project-title">Interactive Calculator</text>
+					<text class="project-badge">{{ copy.beginner }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project3Copy }}</text>
+				<text class="project-tech">Functions · DOM · Logic</text>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { openStudyModule } from '../../utils/studyModule.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const SYNTAX_SCORE_KEY = 'javascriptSyntaxPracticeScore'
+	const FUNCTIONS_SCORE_KEY = 'javascriptFunctionsPracticeScore'
+	const ASYNC_SCORE_KEY = 'javascriptAsyncPracticeScore'
+	const DOM_SCORE_KEY = 'javascriptDomPracticeScore'
+	const ACTIVE_PROJECT_KEY = 'activeProjectId'
+
+	const syntaxScore = ref(0)
+	const functionsScore = ref(0)
+	const asyncScore = ref(0)
+	const domScore = ref(0)
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			title: 'Build strong programming fundamentals',
+			subtitle: 'This path moves from syntax basics into asynchronous thinking and practical browser skills.',
+			whatYouWillLearn: 'What you will learn',
+			summary: 'Variables, functions, arrays, objects, promises, fetch, events, and debugging habits.',
+			modules: 'Modules',
+			completed: 'Completed',
+			bestScore: 'Best score',
+			module1Title: '1. Syntax and data types',
+			module1Copy: 'Understand variables, strings, numbers, booleans, arrays, and objects.',
+			module2Title: '2. Functions and control flow',
+			module2Copy: 'Practice loops, conditions, reusable functions, and clean logic.',
+			module3Title: '3. Async JavaScript',
+			module3Copy: 'Work with promises, async/await, APIs, and loading states.',
+			module4Title: '4. DOM and debugging',
+			module4Copy: 'Inspect the browser, react to events, and fix common errors.',
+			projectCases: 'Project Cases',
+			intermediate: 'Intermediate',
+			beginner: 'Beginner',
+			project1Copy: 'Build a functional todo app with add, delete, and persistence using localStorage.',
+			project2Copy: 'Fetch real weather data from an API, display current conditions and forecasts dynamically.',
+			project3Copy: 'Create a working calculator with operators, decimal support, and clean error handling.',
+		},
+		zh: {
+			title: '打好扎实的编程基础',
+			subtitle: '这条路径会从语法基础推进到异步思维和实用的浏览器技能。',
+			whatYouWillLearn: '你将学到',
+			summary: '变量、函数、数组、对象、Promise、fetch、事件处理和调试习惯。',
+			modules: '模块',
+			completed: '已完成',
+			bestScore: '最高得分',
+			module1Title: '1. 语法与数据类型',
+			module1Copy: '理解变量、字符串、数字、布尔值、数组和对象。',
+			module2Title: '2. 函数与控制流',
+			module2Copy: '练习循环、条件判断、可复用函数和清晰逻辑。',
+			module3Title: '3. 异步 JavaScript',
+			module3Copy: '学习 Promise、async/await、API 和加载状态。',
+			module4Title: '4. DOM 与调试',
+			module4Copy: '检查浏览器、响应事件并修复常见错误。',
+			projectCases: '项目案例',
+			intermediate: '中级',
+			beginner: '入门',
+			project1Copy: '使用 localStorage 构建一个支持新增、删除和持久化的 Todo 应用。',
+			project2Copy: '从 API 获取真实天气数据，并动态展示当前天气和预报。',
+			project3Copy: '创建一个支持运算符、小数和清晰错误处理的计算器。',
+		},
+	} as any
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const loadProgress = () => {
+		syntaxScore.value = Number(uni.getStorageSync(SYNTAX_SCORE_KEY) || 0)
+		functionsScore.value = Number(uni.getStorageSync(FUNCTIONS_SCORE_KEY) || 0)
+		asyncScore.value = Number(uni.getStorageSync(ASYNC_SCORE_KEY) || 0)
+		domScore.value = Number(uni.getStorageSync(DOM_SCORE_KEY) || 0)
+	}
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+		loadProgress()
+	})
+
+	const openModule = (moduleId : string) => {
+		openStudyModule(moduleId)
+	}
+
+	const openProject = (projectId: string) => {
+		uni.setStorageSync(ACTIVE_PROJECT_KEY, projectId)
+		uni.navigateTo({
+			url: '/pages/projectShowcase/projectShowcase'
+		})
+	}
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #fff8ef;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #0f5d74;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #1f2937;
+	}
+
+	.subtitle {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #6b7280;
+	}
+
+	.summary-card,
+	.lesson-card {
+		padding: 18px 16px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08);
+	}
+
+	.summary-card {
+		margin-bottom: 18px;
+		background-image: linear-gradient(180deg, #0d7695 0%, #5c8fb4 100%);
+	}
+
+	.summary-title {
+		font-size: 18px;
+		font-weight: 700;
+		color: #ffffff;
+	}
+
+	.summary-copy {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: rgba(255, 255, 255, 0.92);
+	}
+
+	.section-title {
+		margin-bottom: 12px;
+		font-size: 18px;
+		font-weight: 700;
+		color: #1f2937;
+	}
+
+	.lesson-card {
+		margin-bottom: 12px;
+	}
+
+	.lesson-header {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.lesson-title {
+		font-size: 16px;
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.lesson-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #6b7280;
+	}
+
+	.status-done {
+		padding: 5px 10px;
+		border-radius: 999px;
+		background-color: #dff7ea;
+		font-size: 12px;
+		font-weight: 700;
+		color: #0c7a43;
+	}
+
+	.status-progress {
+		margin-top: 10px;
+		font-size: 12px;
+		color: #0f5d74;
+	}
+
+	.project-card {
+		padding: 18px 16px;
+		margin-bottom: 12px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08);
+	}
+
+	.project-header {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.project-title {
+		font-size: 16px;
+		font-weight: 700;
+		color: #111827;
+		flex: 1;
+	}
+
+	.project-badge {
+		padding: 5px 10px;
+		border-radius: 6px;
+		background-color: #fef3c7;
+		font-size: 12px;
+		font-weight: 700;
+		color: #b45309;
+	}
+
+	.project-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #6b7280;
+	}
+
+	.project-tech {
+		margin-top: 8px;
+		font-size: 12px;
+		color: #0f5d74;
+		font-weight: 600;
+	}
+
+</style>

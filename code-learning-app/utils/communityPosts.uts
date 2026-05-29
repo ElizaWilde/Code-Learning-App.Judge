@@ -1,0 +1,101 @@
+// 功能：封装社区帖子数据的本地存储、创建、查询和互动更新逻辑。
+const COMMUNITY_COMMENTS_KEY_PREFIX = 'communityComments::'
+const ACTIVE_COMMUNITY_POST_KEY = 'activeCommunityPostId'
+const LOGIN_USER_KEY = 'loggedInUser'
+const LOGIN_USER_TYPE_KEY = 'loggedInUserType'
+
+export type UserType = 'normal' | 'expert'
+
+export type CommunityPost = {
+	id : string
+	title : string
+	summary : string
+	content : string
+	meta : string
+	badge : string
+	tags : string[]
+	author : string
+	authorType : UserType
+}
+
+export type CommunityComment = {
+	id : string
+	postId : string
+	author : string
+	authorType : UserType
+	content : string
+	meta : string
+}
+
+export function getCurrentUserType() : UserType {
+	const storedType = uni.getStorageSync(LOGIN_USER_TYPE_KEY) as string
+	if (storedType == 'expert') {
+		return 'expert'
+	}
+
+	return 'normal'
+}
+
+export function getUserBadgeLabel(userType : UserType) : string {
+	if (userType == 'expert') {
+		return '大神'
+	}
+
+	return ''
+}
+
+export function getCurrentUsername() : string {
+	const username = uni.getStorageSync(LOGIN_USER_KEY) as string
+	if (username.length > 0) {
+		return username
+	}
+
+	return 'Guest'
+}
+
+function getCommentsStorageKey(postId : string) : string {
+	return COMMUNITY_COMMENTS_KEY_PREFIX + postId
+}
+
+function readComments(postId : string) : CommunityComment[] {
+	const storedValue = uni.getStorageSync(getCommentsStorageKey(postId))
+	if (storedValue == null || storedValue == '') {
+		return []
+	}
+
+	return storedValue as CommunityComment[]
+}
+
+
+export function setActiveCommunityPostId(postId : string) {
+	uni.setStorageSync(ACTIVE_COMMUNITY_POST_KEY, postId)
+}
+
+export function getActiveCommunityPostId() : string {
+	return uni.getStorageSync(ACTIVE_COMMUNITY_POST_KEY) as string
+}
+
+export function getCommentsForPost(postId : string) : CommunityComment[] {
+	return readComments(postId)
+}
+
+export function addCommentToPost(postId : string, content : string) {
+	const trimmedContent = content.trim()
+	if (trimmedContent.length == 0) {
+		return
+	}
+
+	const comments = readComments(postId)
+	const author = getCurrentUsername()
+	const authorType = getCurrentUserType()
+	const nextComment = {
+		id: 'comment-' + String(Date.now()),
+		postId,
+		author,
+		authorType,
+		content: trimmedContent,
+		meta: 'Comment by ' + author,
+	} as CommunityComment
+
+	uni.setStorageSync(getCommentsStorageKey(postId), [...comments, nextComment])
+}

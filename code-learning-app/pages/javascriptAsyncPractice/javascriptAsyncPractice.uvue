@@ -1,0 +1,87 @@
+<!-- 功能：JavaScript 异步编程练习页，提供异步知识答题与解析反馈。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="question-card" v-for="(question, index) in questions" :key="question.id">
+			<text class="question-title">{{ question.prompt }}</text>
+			<view v-for="option in question.options" :key="option.key" class="option" :class="answers[index] == option.key ? 'selected' : ''" @tap="setAnswer(index, option.key)">
+				<text class="option-text">{{ option.label }}</text>
+			</view>
+			<text v-if="hasSubmitted && answers[index] != question.correctKey" class="error-text">{{ copy.incorrect }} {{ question.correctAnswer }}</text>
+		</view>
+
+		<button class="submit-button" @tap="submitQuiz">{{ copy.submit }}</button>
+		<text v-if="resultMessage.length > 0" class="result">{{ resultMessage }}</text>
+		<button v-if="showNextButton" class="next-button" @tap="goToNextModule">{{ copy.nextModule }}</button>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { saveWrongQuestionsForModule } from '../../utils/wrongQuestions.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const SCORE_KEY = 'javascriptAsyncPracticeScore'
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: { eyebrow: 'JavaScript Practice', title: 'Async JavaScript Quiz', subtitle: 'Choose the best answer for each question.', submit: 'Submit Answers', nextModule: 'Next Module', incorrect: 'Incorrect. Correct answer:', answerAll: 'Please answer all questions first.', scorePrefix: 'You got ', scoreMiddle: ' out of 3 correct.' },
+		zh: { eyebrow: 'JavaScript 练习', title: '异步 JavaScript 测验', subtitle: '为每道题选择最佳答案。', submit: '提交答案', nextModule: '下一模块', incorrect: '回答错误，正确答案：', answerAll: '请先完成所有题目。', scorePrefix: '你答对了 ', scoreMiddle: ' / 3 题。' },
+	}
+	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+	const questions = computed(() => currentLanguage.value == 'zh'
+		? [
+			{ id: 'js-async-q1', prompt: '1. Promise 表示什么？', options: [{ key: 'A', label: 'A. 未来才会得到的结果' }, { key: 'B', label: 'B. CSS 布局' }, { key: 'C', label: 'C. 数据库表' }], correctKey: 'A', correctAnswer: 'A. 未来才会得到的结果' },
+			{ id: 'js-async-q2', prompt: '2. 哪种语法让 Promise 代码更容易阅读？', options: [{ key: 'A', label: 'A. async / await' }, { key: 'B', label: 'B. switch / case' }, { key: 'C', label: 'C. const / let' }], correctKey: 'A', correctAnswer: 'A. async / await' },
+			{ id: 'js-async-q3', prompt: '3. 为什么 `try/catch` 对异步代码很有用？', options: [{ key: 'A', label: 'A. 用于处理可能出现的错误' }, { key: 'B', label: 'B. 用于排序数组' }, { key: 'C', label: 'C. 用于声明导入' }], correctKey: 'A', correctAnswer: 'A. 用于处理可能出现的错误' },
+		]
+		: [
+			{ id: 'js-async-q1', prompt: '1. What does a Promise represent?', options: [{ key: 'A', label: 'A. A future result' }, { key: 'B', label: 'B. A CSS layout' }, { key: 'C', label: 'C. A database table' }], correctKey: 'A', correctAnswer: 'A. A future result' },
+			{ id: 'js-async-q2', prompt: '2. Which syntax makes promise code easier to read?', options: [{ key: 'A', label: 'A. async / await' }, { key: 'B', label: 'B. switch / case' }, { key: 'C', label: 'C. const / let' }], correctKey: 'A', correctAnswer: 'A. async / await' },
+			{ id: 'js-async-q3', prompt: '3. Why is `try/catch` useful with async code?', options: [{ key: 'A', label: 'A. To handle possible errors' }, { key: 'B', label: 'B. To sort arrays' }, { key: 'C', label: 'C. To declare imports' }], correctKey: 'A', correctAnswer: 'A. To handle possible errors' },
+		])
+	const answers = ref(['', '', ''] as string[])
+	const resultMessage = ref('')
+	const hasSubmitted = ref(false)
+	const showNextButton = ref(false)
+	const setAnswer = (index: number, answer: string) => { answers.value[index] = answer }
+	const submitQuiz = () => {
+		if (answers.value.some(answer => answer.length == 0)) { hasSubmitted.value = false; resultMessage.value = copy.value.answerAll; showNextButton.value = false; return }
+		hasSubmitted.value = true
+		let score = 0
+		const selectedAnswers: string[] = []
+		for (let i = 0; i < questions.value.length; i++) {
+			const question = questions.value[i]
+			const selected = question.options.find(option => option.key == answers.value[i])
+			selectedAnswers.push(selected ? selected.label : '')
+			if (answers.value[i] == question.correctKey) score += 1
+		}
+		saveWrongQuestionsForModule('javascript', 'JavaScript', 'javascript-async-practice', currentLanguage.value == 'zh' ? '异步 JavaScript 测验' : 'Async JavaScript Quiz', questions.value as any, selectedAnswers)
+		const savedScore = Number(uni.getStorageSync(SCORE_KEY) || 0)
+		uni.setStorageSync(SCORE_KEY, score > savedScore ? score : savedScore)
+		resultMessage.value = copy.value.scorePrefix + score + copy.value.scoreMiddle
+		showNextButton.value = score == 3
+	}
+	const goToNextModule = () => { uni.navigateTo({ url: '/pages/javascriptDom/javascriptDom' }) }
+	onShow(() => { currentLanguage.value = getCurrentLanguage() })
+</script>
+
+<style>
+	.page { min-height: 100vh; padding: 20px 18px 28px; background-color: #fff8ef; }
+	.hero { padding: 12px 2px 18px; }
+	.eyebrow { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #0f5d74; }
+	.title { margin-top: 10px; font-size: 30px; line-height: 36px; font-weight: 700; color: #1f2937; }
+	.subtitle { margin-top: 10px; font-size: 14px; line-height: 21px; color: #6b7280; }
+	.question-card { padding: 18px 16px; margin-bottom: 14px; border-radius: 18px; background-color: #ffffff; box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08); }
+	.question-title { font-size: 16px; line-height: 24px; font-weight: 700; color: #111827; }
+	.option { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background-color: #f6f8fb; }
+	.selected { background-color: #dbeafe; }
+	.option-text { font-size: 14px; color: #374151; }
+	.submit-button { height: 42px; border-radius: 14px; border-width: 0; background-color: #16394b; color: #ffffff; font-size: 15px; font-weight: 600; }
+	.error-text { margin-top: 10px; font-size: 13px; line-height: 19px; color: #c2410c; }
+	.result { margin-top: 12px; font-size: 14px; text-align: center; color: #0f5d74; }
+	.next-button { height: 42px; margin-top: 12px; border-radius: 14px; border-width: 0; background-color: #0f5d74; color: #ffffff; font-size: 15px; font-weight: 600; }
+</style>

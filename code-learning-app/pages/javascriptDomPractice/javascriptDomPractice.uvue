@@ -1,0 +1,87 @@
+<!-- 功能：JavaScript DOM 练习页，提供 DOM 操作相关题目和答题反馈。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="question-card" v-for="(question, index) in questions" :key="question.id">
+			<text class="question-title">{{ question.prompt }}</text>
+			<view v-for="option in question.options" :key="option.key" class="option" :class="answers[index] == option.key ? 'selected' : ''" @tap="setAnswer(index, option.key)">
+				<text class="option-text">{{ option.label }}</text>
+			</view>
+			<text v-if="hasSubmitted && answers[index] != question.correctKey" class="error-text">{{ copy.incorrect }} {{ question.correctAnswer }}</text>
+		</view>
+
+		<button class="submit-button" @tap="submitQuiz">{{ copy.submit }}</button>
+		<text v-if="resultMessage.length > 0" class="result">{{ resultMessage }}</text>
+		<button v-if="showNextButton" class="next-button" @tap="goBackToPath">{{ copy.backToPath }}</button>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { saveWrongQuestionsForModule } from '../../utils/wrongQuestions.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const SCORE_KEY = 'javascriptDomPracticeScore'
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: { eyebrow: 'JavaScript Practice', title: 'DOM and Debugging Quiz', subtitle: 'Choose the best answer for each question.', submit: 'Submit Answers', backToPath: 'Back To JavaScript Path', incorrect: 'Incorrect. Correct answer:', answerAll: 'Please answer all questions first.', scorePrefix: 'You got ', scoreMiddle: ' out of 3 correct.' },
+		zh: { eyebrow: 'JavaScript 练习', title: 'DOM 与调试测验', subtitle: '为每道题选择最佳答案。', submit: '提交答案', backToPath: '返回 JavaScript 路径', incorrect: '回答错误，正确答案：', answerAll: '请先完成所有题目。', scorePrefix: '你答对了 ', scoreMiddle: ' / 3 题。' },
+	}
+	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+	const questions = computed(() => currentLanguage.value == 'zh'
+		? [
+			{ id: 'js-dom-q1', prompt: '1. 什么是 DOM？', options: [{ key: 'A', label: 'A. 浏览器对页面的内部表示' }, { key: 'B', label: 'B. 一个 SQL 查询' }, { key: 'C', label: 'C. 一个后端路由' }], correctKey: 'A', correctAnswer: 'A. 浏览器对页面的内部表示' },
+			{ id: 'js-dom-q2', prompt: '2. 事件监听器可以响应什么？', options: [{ key: 'A', label: 'A. 点击等用户操作' }, { key: 'B', label: 'B. 仅数据库结构' }, { key: 'C', label: 'C. 密码哈希' }], correctKey: 'A', correctAnswer: 'A. 点击等用户操作' },
+			{ id: 'js-dom-q3', prompt: '3. 检查请求是否失败最有用的工具是什么？', options: [{ key: 'A', label: 'A. 网络面板' }, { key: 'B', label: 'B. 文本阴影' }, { key: 'C', label: 'C. 圆角边框' }], correctKey: 'A', correctAnswer: 'A. 网络面板' },
+		]
+		: [
+			{ id: 'js-dom-q1', prompt: '1. What is the DOM?', options: [{ key: 'A', label: 'A. The browser representation of a page' }, { key: 'B', label: 'B. A SQL query' }, { key: 'C', label: 'C. A backend route' }], correctKey: 'A', correctAnswer: 'A. The browser representation of a page' },
+			{ id: 'js-dom-q2', prompt: '2. What can an event listener react to?', options: [{ key: 'A', label: 'A. User actions like clicks' }, { key: 'B', label: 'B. Database schema only' }, { key: 'C', label: 'C. Password hashes' }], correctKey: 'A', correctAnswer: 'A. User actions like clicks' },
+			{ id: 'js-dom-q3', prompt: '3. Which tool is most useful for checking whether a request failed?', options: [{ key: 'A', label: 'A. Network panel' }, { key: 'B', label: 'B. Text shadow' }, { key: 'C', label: 'C. Border radius' }], correctKey: 'A', correctAnswer: 'A. Network panel' },
+		])
+	const answers = ref(['', '', ''] as string[])
+	const resultMessage = ref('')
+	const hasSubmitted = ref(false)
+	const showNextButton = ref(false)
+	const setAnswer = (index: number, answer: string) => { answers.value[index] = answer }
+	const submitQuiz = () => {
+		if (answers.value.some(answer => answer.length == 0)) { hasSubmitted.value = false; resultMessage.value = copy.value.answerAll; showNextButton.value = false; return }
+		hasSubmitted.value = true
+		let score = 0
+		const selectedAnswers: string[] = []
+		for (let i = 0; i < questions.value.length; i++) {
+			const question = questions.value[i]
+			const selected = question.options.find(option => option.key == answers.value[i])
+			selectedAnswers.push(selected ? selected.label : '')
+			if (answers.value[i] == question.correctKey) score += 1
+		}
+		saveWrongQuestionsForModule('javascript', 'JavaScript', 'javascript-dom-practice', currentLanguage.value == 'zh' ? 'DOM 与调试测验' : 'DOM and Debugging Quiz', questions.value as any, selectedAnswers)
+		const savedScore = Number(uni.getStorageSync(SCORE_KEY) || 0)
+		uni.setStorageSync(SCORE_KEY, score > savedScore ? score : savedScore)
+		resultMessage.value = copy.value.scorePrefix + score + copy.value.scoreMiddle
+		showNextButton.value = score == 3
+	}
+	const goBackToPath = () => { uni.navigateBack({ delta: 2 }) }
+	onShow(() => { currentLanguage.value = getCurrentLanguage() })
+</script>
+
+<style>
+	.page { min-height: 100vh; padding: 20px 18px 28px; background-color: #fff8ef; }
+	.hero { padding: 12px 2px 18px; }
+	.eyebrow { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #0f5d74; }
+	.title { margin-top: 10px; font-size: 30px; line-height: 36px; font-weight: 700; color: #1f2937; }
+	.subtitle { margin-top: 10px; font-size: 14px; line-height: 21px; color: #6b7280; }
+	.question-card { padding: 18px 16px; margin-bottom: 14px; border-radius: 18px; background-color: #ffffff; box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08); }
+	.question-title { font-size: 16px; line-height: 24px; font-weight: 700; color: #111827; }
+	.option { margin-top: 10px; padding: 12px 14px; border-radius: 14px; background-color: #f6f8fb; }
+	.selected { background-color: #dbeafe; }
+	.option-text { font-size: 14px; color: #374151; }
+	.submit-button { height: 42px; border-radius: 14px; border-width: 0; background-color: #16394b; color: #ffffff; font-size: 15px; font-weight: 600; }
+	.error-text { margin-top: 10px; font-size: 13px; line-height: 19px; color: #c2410c; }
+	.result { margin-top: 12px; font-size: 14px; text-align: center; color: #0f5d74; }
+	.next-button { height: 42px; margin-top: 12px; border-radius: 14px; border-width: 0; background-color: #0f5d74; color: #ffffff; font-size: 15px; font-weight: 600; }
+</style>

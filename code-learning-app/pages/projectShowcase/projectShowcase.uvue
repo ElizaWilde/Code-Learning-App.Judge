@@ -1,0 +1,951 @@
+<!-- 功能：项目展示页，呈现实战项目案例、技术栈、步骤和成果说明。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ currentProject.pathLabel }}</text>
+			<text class="title">{{ currentProject.title }}</text>
+			<text class="badge" :class="'badge-' + currentProject.difficulty">{{ difficultyLabel }}</text>
+		</view>
+
+		<view class="description-card">
+			<text class="section-label">{{ copy.projectOverview }}</text>
+			<text class="description-text">{{ currentProject.description }}</text>
+		</view>
+
+		<view class="learning-card">
+			<text class="section-label">{{ copy.whatYouWillLearn }}</text>
+			<view class="learning-item" v-for="(skill, index) in currentProject.skills" :key="index">
+				<text class="learning-title">{{ skill.title }}</text>
+				<text class="learning-detail">{{ skill.detail }}</text>
+			</view>
+		</view>
+
+		<view class="structure-card">
+			<text class="section-label">{{ copy.projectStructure }}</text>
+			<view class="structure-item" v-for="(item, index) in currentProject.structure" :key="index">
+				<text class="structure-label">{{ item.phase }}</text>
+				<text class="structure-desc">{{ item.description }}</text>
+			</view>
+		</view>
+
+		<view class="tech-card">
+			<text class="section-label">{{ copy.technologies }}</text>
+			<view class="tech-tag" v-for="tech in currentProject.technologies" :key="tech">
+				<text class="tech-text">#{{ tech }}</text>
+			</view>
+		</view>
+
+		<view class="code-card" v-if="currentProject.sampleCodeLines.length > 0">
+			<text class="section-label">{{ copy.relatedCode }}</text>
+			<view class="code-meta">
+				<text class="code-title">{{ currentProject.sampleCodeTitle }}</text>
+				<text class="code-language">{{ currentProject.sampleCodeLanguage }}</text>
+			</view>
+			<view class="code-block">
+				<text class="code-line" v-for="(line, index) in currentProject.sampleCodeLines" :key="index">{{ line }}</text>
+			</view>
+		</view>
+
+		<view class="tips-card">
+			<text class="section-label">{{ copy.keyTips }}</text>
+			<view class="tip-item" v-for="(tip, index) in currentProject.tips" :key="index">
+				<text class="tip-bullet">•</text>
+				<text class="tip-text">{{ tip }}</text>
+			</view>
+		</view>
+
+		<view class="cta-section">
+			<button class="start-button" @tap="handleStart">{{ copy.startProject }}</button>
+			<text class="cta-hint">{{ copy.ctaHint }}</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const ACTIVE_PROJECT_KEY = 'activeProjectId'
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			projectOverview: 'Project Overview',
+			whatYouWillLearn: 'What You\'ll Learn',
+			projectStructure: 'Project Structure',
+			technologies: 'Technologies & Concepts',
+			relatedCode: 'Related Code',
+			keyTips: 'Key Tips',
+			startProject: 'Start This Project',
+			ctaHint: 'Follow the steps in order. Ask in community if stuck.',
+			bookmarked: 'Project bookmarked! Check community for guidance.',
+			beginner: 'Beginner',
+			intermediate: 'Intermediate',
+			advanced: 'Advanced',
+		},
+		zh: {
+			projectOverview: '项目概览',
+			whatYouWillLearn: '你将学到什么',
+			projectStructure: '项目结构',
+			technologies: '技术与概念',
+			relatedCode: '相关代码',
+			keyTips: '关键提示',
+			startProject: '开始这个项目',
+			ctaHint: '按顺序完成步骤，遇到问题可去社区提问。',
+			bookmarked: '项目已收藏，可去社区查看指导。',
+			beginner: '初级',
+			intermediate: '中级',
+			advanced: '高级',
+		},
+	}
+	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+
+	type ProjectDetail = {
+		id: string
+		pathLabel: string
+		title: string
+		difficulty: string
+		description: string
+		skills: Array<{ title: string; detail: string }>
+		structure: Array<{ phase: string; description: string }>
+		technologies: string[]
+		tips: string[]
+	}
+
+	type ProjectSample = {
+		sampleCodeTitle: string
+		sampleCodeLanguage: string
+		sampleCodeLines: string[]
+	}
+
+	type ProjectView = ProjectDetail & ProjectSample
+
+	const getProjectDetails = (projectId: string): ProjectDetail => {
+		switch (projectId) {
+			// JavaScript Projects
+			case 'js-todo-app':
+				return {
+					id: 'js-todo-app',
+					pathLabel: 'JavaScript Project',
+					title: 'Todo List App',
+					difficulty: 'Intermediate',
+					description: 'Build a fully functional todo list application where users can add, delete, and mark tasks as complete. This project teaches DOM manipulation, event handling, and browser storage.',
+					skills: [
+						{ title: 'DOM Manipulation', detail: 'Select elements and update content dynamically based on user actions.' },
+						{ title: 'Event Handling', detail: 'Respond to clicks, form submissions, and keyboard input.' },
+						{ title: 'LocalStorage API', detail: 'Save and retrieve data so todos persist after page reload.' },
+						{ title: 'Array Methods', detail: 'Use map, filter, and find to manage todo state.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: HTML & CSS', description: 'Create a clean input form and task list layout.' },
+						{ phase: 'Phase 2: Add Todos', description: 'Capture input and add new items to the DOM.' },
+						{ phase: 'Phase 3: Delete & Complete', description: 'Add buttons and styles for task management.' },
+						{ phase: 'Phase 4: Persistence', description: 'Save todos to localStorage and reload on page start.' },
+					],
+					technologies: ['DOM', 'Events', 'localStorage', 'Arrays'],
+					tips: [
+						'Start with hardcoded HTML to see the layout first.',
+						'Use data attributes to track which todo to delete.',
+						'Test localStorage in DevTools to verify save/load.',
+						'Add a filter toggle to show all, active, or completed todos.',
+					],
+				}
+
+			case 'js-weather-app':
+				return {
+					id: 'js-weather-app',
+					pathLabel: 'JavaScript Project',
+					title: 'Weather Dashboard',
+					difficulty: 'Intermediate',
+					description: 'Create a weather app that fetches real data from a public API and displays current conditions, forecasts, and weather trends with dynamic updates.',
+					skills: [
+						{ title: 'Fetch API', detail: 'Make HTTP requests to a weather API and handle responses.' },
+						{ title: 'Async/Await', detail: 'Write clean code that waits for API responses.' },
+						{ title: 'Error Handling', detail: 'Handle network failures and invalid locations gracefully.' },
+						{ title: 'DOM Updates', detail: 'Dynamically render weather cards and forecast data.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: API Setup', description: 'Register for a free weather API (OpenWeatherMap, WeatherAPI).' },
+						{ phase: 'Phase 2: Fetch & Parse', description: 'Make requests and extract temperature, humidity, and description.' },
+						{ phase: 'Phase 3: Display Data', description: 'Render current weather and a 5-day forecast.' },
+						{ phase: 'Phase 4: Search & Refresh', description: 'Let users search by city and auto-refresh data.' },
+					],
+					technologies: ['Fetch API', 'async/await', 'JSON', 'DOM'],
+					tips: [
+						'Test the API endpoint in your browser first.',
+						'Store the API key safely (not in version control).',
+						'Add a loading spinner while data is being fetched.',
+						'Use Intl.DateTimeFormat for user-friendly dates.',
+					],
+				}
+
+			case 'js-calculator':
+				return {
+					id: 'js-calculator',
+					pathLabel: 'JavaScript Project',
+					title: 'Interactive Calculator',
+					difficulty: 'Beginner',
+					description: 'Build a working calculator with basic operations, decimal support, and error handling. Perfect for practicing functions, logic, and DOM events.',
+					skills: [
+						{ title: 'Functions', detail: 'Create reusable logic for math operations.' },
+						{ title: 'Event Listeners', detail: 'Capture button clicks and keyboard input.' },
+						{ title: 'State Management', detail: 'Track current input, operator, and result.' },
+						{ title: 'String Parsing', detail: 'Convert user input to numbers and handle edge cases.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: UI Layout', description: 'Create a button grid for numbers and operators.' },
+						{ phase: 'Phase 2: Display Logic', description: 'Update display as user types and performs operations.' },
+						{ phase: 'Phase 3: Calculation', description: 'Implement add, subtract, multiply, and divide.' },
+						{ phase: 'Phase 4: Polish', description: 'Add decimal support, clear button, and error messages.' },
+					],
+					technologies: ['Functions', 'Events', 'Logic', 'DOM'],
+					tips: [
+						'Keep separate variables for display and calculation state.',
+						'Test edge cases like 0 / 0 or very large numbers.',
+						'Add keyboard support for faster input.',
+						'Consider using eval() sparingly—it has security risks.',
+					],
+				}
+
+			// Java Projects
+			case 'java-student-mgmt':
+				return {
+					id: 'java-student-mgmt',
+					pathLabel: 'Java Project',
+					title: 'Student Management System',
+					difficulty: 'Intermediate',
+					description: 'Design a system to manage students and courses using classes, collections, and CRUD operations. Learn OOP principles in a practical context.',
+					skills: [
+						{ title: 'Classes & Objects', detail: 'Define Student and Course classes with proper encapsulation.' },
+						{ title: 'Collections', detail: 'Use ArrayLists to store and manage groups of students.' },
+						{ title: 'CRUD Operations', detail: 'Implement Create, Read, Update, Delete methods.' },
+						{ title: 'Inheritance', detail: 'Use inheritance for different student types (undergrad, grad).' },
+					],
+					structure: [
+						{ phase: 'Phase 1: Data Models', description: 'Create Student and Course classes with fields and getters/setters.' },
+						{ phase: 'Phase 2: Collections', description: 'Use ArrayLists to manage collections of students and courses.' },
+						{ phase: 'Phase 3: CRUD Logic', description: 'Implement add, search, update, and delete methods.' },
+						{ phase: 'Phase 4: Relationships', description: 'Enroll students in courses and query by course.' },
+					],
+					technologies: ['Classes', 'Collections', 'Inheritance', 'OOP'],
+					tips: [
+						'Use constructors to enforce valid object creation.',
+						'Implement toString() for easy debugging.',
+						'Use Collections.sort() with custom Comparators.',
+						'Consider a Map for O(1) student lookup by ID.',
+					],
+				}
+
+			case 'java-banking-app':
+				return {
+					id: 'java-banking-app',
+					pathLabel: 'Java Project',
+					title: 'Banking System',
+					difficulty: 'Advanced',
+					description: 'Build a banking system with accounts, transactions, and exception handling. Explore inheritance, interfaces, and error scenarios.',
+					skills: [
+						{ title: 'Inheritance', detail: 'Create Account, CheckingAccount, and SavingsAccount classes.' },
+						{ title: 'Exceptions', detail: 'Handle insufficient funds, invalid amounts, and overdrafts.' },
+						{ title: 'Encapsulation', detail: 'Protect sensitive fields and provide controlled access.' },
+						{ title: 'Interfaces', detail: 'Define contracts for Transactable or Reportable behavior.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: Account Hierarchy', description: 'Create base Account class and subclasses for checking/savings.' },
+						{ phase: 'Phase 2: Transactions', description: 'Implement deposit and withdrawal with validation.' },
+						{ phase: 'Phase 3: Exception Handling', description: 'Throw and catch custom exceptions for error cases.' },
+						{ phase: 'Phase 4: Reporting', description: 'Generate transaction history and account statements.' },
+					],
+					technologies: ['Inheritance', 'Exceptions', 'Encapsulation', 'Interfaces'],
+					tips: [
+						'Create a custom exception like InsufficientFundsException.',
+						'Use BigDecimal for precise money calculations.',
+						'Log all transactions for audit trails.',
+						'Consider thread safety if handling concurrent withdrawals.',
+					],
+				}
+
+			case 'java-library-api':
+				return {
+					id: 'java-library-api',
+					pathLabel: 'Java Project',
+					title: 'Library Management API',
+					difficulty: 'Advanced',
+					description: 'Create a REST API backend for a library system with book inventory, borrowing logic, and proper request/response handling.',
+					skills: [
+						{ title: 'REST API Design', detail: 'Design endpoints for CRUD operations on books and users.' },
+						{ title: 'JSON Serialization', detail: 'Convert objects to JSON and back.' },
+						{ title: 'Backend Architecture', description: 'Separate concerns into controllers, services, and repositories.' },
+						{ title: 'Error Responses', detail: 'Return meaningful HTTP status codes and error messages.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: Data Models', description: 'Create Book, User, and Loan classes.' },
+						{ phase: 'Phase 2: API Endpoints', description: 'Define GET, POST, PUT, DELETE routes.' },
+						{ phase: 'Phase 3: Business Logic', description: 'Implement borrowing rules and availability checks.' },
+						{ phase: 'Phase 4: Testing', description: 'Test endpoints with tools like Postman or curl.' },
+					],
+					technologies: ['REST', 'JSON', 'HTTP', 'Backend Architecture'],
+					tips: [
+						'Use HTTP status codes correctly (200, 201, 400, 404, 500).',
+						'Version your API (e.g., /api/v1/books).',
+						'Add request validation before processing.',
+						'Consider pagination for large book lists.',
+					],
+				}
+
+			// PostgreSQL & Redis Projects
+			case 'pg-ecommerce-db':
+				return {
+					id: 'pg-ecommerce-db',
+					pathLabel: 'PostgreSQL & Redis Project',
+					title: 'E-commerce Database',
+					difficulty: 'Intermediate',
+					description: 'Design and build a normalized database for an e-commerce platform with products, orders, and users.',
+					skills: [
+						{ title: 'Schema Design', detail: 'Create normalized tables with proper primary and foreign keys.' },
+						{ title: 'Relationships', detail: 'Use joins to query across multiple tables.' },
+						{ title: 'Indexing', detail: 'Add indexes on frequently queried columns.' },
+						{ title: 'SQL Queries', detail: 'Write complex SELECT, INSERT, UPDATE, DELETE statements.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: Tables', description: 'Create users, products, orders, and order_items tables.' },
+						{ phase: 'Phase 2: Relationships', description: 'Add foreign keys to link orders to users and products.' },
+						{ phase: 'Phase 3: Indexes', description: 'Index user IDs, product IDs, and order dates.' },
+						{ phase: 'Phase 4: Queries', description: 'Write queries for sales reports, user history, and inventory.' },
+					],
+					technologies: ['SQL', 'Normalization', 'Relationships', 'Indexing'],
+					tips: [
+						'Start with an ER diagram before writing SQL.',
+						'Use SERIAL or UUID for primary keys.',
+						'Add NOT NULL constraints where appropriate.',
+						'Test your queries with sample data.',
+					],
+				}
+
+			case 'redis-cache-layer':
+				return {
+					id: 'redis-cache-layer',
+					pathLabel: 'PostgreSQL & Redis Project',
+					title: 'Caching Layer with Redis',
+					difficulty: 'Intermediate',
+					description: 'Build real-time features using Redis: session storage, leaderboards, counters, and activity tracking.',
+					skills: [
+						{ title: 'Redis Data Structures', detail: 'Work with strings, hashes, sets, and sorted sets.' },
+						{ title: 'Key Expiration', detail: 'Set TTL on keys for automatic cache invalidation.' },
+						{ title: 'Atomic Operations', detail: 'Use INCR and LPUSH for safe concurrent updates.' },
+						{ title: 'Redis Commands', detail: 'Master SET, GET, HGETALL, ZADD, EXPIRE.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: Session Storage', description: 'Store user sessions with expiration.' },
+						{ phase: 'Phase 2: Leaderboard', description: 'Use sorted sets to rank players by score.' },
+						{ phase: 'Phase 3: Counters', description: 'Track page views or API call rates.' },
+						{ phase: 'Phase 4: Activity Log', description: 'Store recent user actions with time decay.' },
+					],
+					technologies: ['Redis', 'Data Structures', 'Expiration', 'Atomic Operations'],
+					tips: [
+						'Use meaningful key names like "user:1000:session".',
+						'Set TTL on all temporary data.',
+						'Monitor memory usage with Redis INFO command.',
+						'Consider using Redis transactions (MULTI/EXEC) for related updates.',
+					],
+				}
+
+			case 'pg-redis-hybrid':
+				return {
+					id: 'pg-redis-hybrid',
+					pathLabel: 'PostgreSQL & Redis Project',
+					title: 'Hybrid Cache Architecture',
+					difficulty: 'Advanced',
+					description: 'Build a system that reads from PostgreSQL, caches hot data in Redis, and intelligently handles cache invalidation.',
+					skills: [
+						{ title: 'Cache Strategies', detail: 'Implement cache-aside, write-through, or write-behind patterns.' },
+						{ title: 'Invalidation', detail: 'Update cache when database data changes.' },
+						{ title: 'Performance Tuning', detail: 'Measure and optimize query performance.' },
+						{ title: 'Distributed Thinking', detail: 'Handle eventual consistency and race conditions.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: Dual Storage', description: 'Set up both PostgreSQL and Redis connections.' },
+						{ phase: 'Phase 2: Read Path', description: 'Check cache first, fall back to database, and populate cache.' },
+						{ phase: 'Phase 3: Write Path', description: 'Update database, then invalidate or refresh cache.' },
+						{ phase: 'Phase 4: Monitoring', description: 'Track cache hit rates and query latency.' },
+					],
+					technologies: ['PostgreSQL', 'Redis', 'Caching Patterns', 'Architecture'],
+					tips: [
+						'Use cache versioning to handle deployments safely.',
+						'Log all cache operations for debugging.',
+						'Test failure scenarios (Redis down, stale data).',
+						'Consider time-based and event-based invalidation.',
+					],
+				}
+
+			// AI Projects
+			case 'ai-code-reviewer':
+				return {
+					id: 'ai-code-reviewer',
+					pathLabel: 'AI Project',
+					title: 'AI Code Reviewer',
+					difficulty: 'Intermediate',
+					description: 'Use an LLM API to review code for bugs, style issues, and performance improvements. Learn prompt engineering and API integration.',
+					skills: [
+						{ title: 'Prompt Engineering', detail: 'Write prompts that guide the model to find real issues.' },
+						{ title: 'API Integration', detail: 'Call an LLM API (OpenAI, Claude) with code snippets.' },
+						{ title: 'Response Parsing', detail: 'Extract and format review results for display.' },
+						{ title: 'Error Handling', detail: 'Handle API failures and rate limits gracefully.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: API Setup', description: 'Register for an LLM API and get an API key.' },
+						{ phase: 'Phase 2: Prompt Design', description: 'Craft a prompt that specifies review criteria.' },
+						{ phase: 'Phase 3: Code Input', description: 'Accept code snippets from a text input.' },
+						{ phase: 'Phase 4: Display Review', description: 'Parse and display the AI review in a readable format.' },
+					],
+					technologies: ['LLM APIs', 'Prompting', 'JSON', 'Error Handling'],
+					tips: [
+						'Specify the language and focus areas in your prompt.',
+						'Include examples of good vs bad code in your prompt.',
+						'Test with different code samples to refine your prompt.',
+						'Cache API responses to save money and improve performance.',
+					],
+				}
+
+			case 'ai-chatbot-builder':
+				return {
+					id: 'ai-chatbot-builder',
+					pathLabel: 'AI Project',
+					title: 'Smart Chatbot Builder',
+					difficulty: 'Advanced',
+					description: 'Build a conversational assistant with context awareness, proper error handling, and response quality evaluation.',
+					skills: [
+						{ title: 'Context Management', detail: 'Keep conversation history and pass it to the LLM.' },
+						{ title: 'Streaming Responses', detail: 'Display LLM output word-by-word as it arrives.' },
+						{ title: 'System Prompts', detail: 'Use system messages to define chatbot personality and constraints.' },
+						{ title: 'User Experience', detail: 'Handle long responses, errors, and edge cases smoothly.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: Message Storage', description: 'Store chat history in memory or database.' },
+						{ phase: 'Phase 2: API Calls', description: 'Send user message + history to LLM API.' },
+						{ phase: 'Phase 3: Streaming UI', description: 'Display response as it arrives (if API supports it).' },
+						{ phase: 'Phase 4: Context Window', description: 'Manage when to trim old messages to stay under token limits.' },
+					],
+					technologies: ['LLM APIs', 'Streaming', 'Context Management', 'UX'],
+					tips: [
+						'Start with a simple system prompt and iterate.',
+						'Test the conversation context window limits.',
+						'Add a "Reset" button to clear history.',
+						'Monitor token usage to predict API costs.',
+					],
+				}
+
+			case 'ai-content-gen':
+				return {
+					id: 'ai-content-gen',
+					pathLabel: 'AI Project',
+					title: 'Content Generation Tool',
+					difficulty: 'Advanced',
+					description: 'Create an app that generates essays, summaries, or code based on user prompts with quality validation.',
+					skills: [
+						{ title: 'Prompt Design', detail: 'Craft prompts that produce consistent, high-quality output.' },
+						{ title: 'Output Validation', detail: 'Check generated content for length, tone, and relevance.' },
+						{ title: 'Refinement Loops', detail: 'Re-prompt or adjust output if it doesn\'t meet criteria.' },
+						{ title: 'User Feedback', detail: 'Collect feedback to improve prompt quality over time.' },
+					],
+					structure: [
+						{ phase: 'Phase 1: Prompt Library', description: 'Create templates for essays, code, or summaries.' },
+						{ phase: 'Phase 2: User Input', description: 'Capture topic, tone, length preferences.' },
+						{ phase: 'Phase 3: Generation', description: 'Call LLM with customized prompt.' },
+						{ phase: 'Phase 4: Quality Checks', description: 'Validate output and allow user refinement.' },
+					],
+					technologies: ['Prompting', 'Validation', 'Output Processing', 'Feedback Loops'],
+					tips: [
+						'Use temperature and max_tokens parameters to control output style.',
+						'Implement a "regenerate" button for quick iterations.',
+						'Show token usage to set user expectations.',
+						'Store successful prompts as templates for the future.',
+					],
+				}
+
+			default:
+				return {
+					id: 'unknown',
+					pathLabel: 'Project',
+					title: 'Unknown Project',
+					difficulty: 'Beginner',
+					description: 'This project could not be found.',
+					skills: [],
+					structure: [],
+					technologies: [],
+					tips: [],
+				}
+		}
+	}
+
+	const getProjectSample = (projectId: string): ProjectSample => {
+		switch (projectId) {
+			case 'js-todo-app':
+				return {
+					sampleCodeTitle: 'Todo state update',
+					sampleCodeLanguage: 'JavaScript',
+					sampleCodeLines: [
+						'const todos = JSON.parse(localStorage.getItem(\'todos\') || \'[]\')',
+						'',
+						'function addTodo(text) {',
+						'  const todo = { id: Date.now(), text, done: false }',
+						'  todos.push(todo)',
+						'  localStorage.setItem(\'todos\', JSON.stringify(todos))',
+						'  renderTodos()',
+						'}',
+					],
+				}
+			case 'js-weather-app':
+				return {
+					sampleCodeTitle: 'Weather request flow',
+					sampleCodeLanguage: 'JavaScript',
+					sampleCodeLines: [
+						'async function loadWeather(city) {',
+						'  const response = await fetch(`/api/weather?city=${encodeURIComponent(city)}`)',
+						'  if (!response.ok) throw new Error(\'Weather request failed\')',
+						'  const data = await response.json()',
+						'  temperatureEl.textContent = `${data.current.temp_c}°C`',
+						'  summaryEl.textContent = data.current.condition.text',
+						'}',
+					],
+				}
+			case 'js-calculator':
+				return {
+					sampleCodeTitle: 'Calculator evaluate step',
+					sampleCodeLanguage: 'JavaScript',
+					sampleCodeLines: [
+						'function calculate(left, operator, right) {',
+						'  if (operator === \'+\') return left + right',
+						'  if (operator === \'-\') return left - right',
+						'  if (operator === \'*\') return left * right',
+						'  if (right === 0) throw new Error(\'Cannot divide by zero\')',
+						'  return left / right',
+						'}',
+					],
+				}
+			case 'java-student-mgmt':
+				return {
+					sampleCodeTitle: 'Student registry lookup',
+					sampleCodeLanguage: 'Java',
+					sampleCodeLines: [
+						'public Student findStudentById(String id) {',
+						'    for (Student student : students) {',
+						'        if (student.getId().equals(id)) {',
+						'            return student;',
+						'        }',
+						'    }',
+						'    return null;',
+						'}',
+					],
+				}
+			case 'java-banking-app':
+				return {
+					sampleCodeTitle: 'Withdrawal validation',
+					sampleCodeLanguage: 'Java',
+					sampleCodeLines: [
+						'public void withdraw(BigDecimal amount) {',
+						'    if (amount.compareTo(BigDecimal.ZERO) <= 0) {',
+						'        throw new IllegalArgumentException("Amount must be positive");',
+						'    }',
+						'    if (balance.compareTo(amount) < 0) {',
+						'        throw new InsufficientFundsException("Balance too low");',
+						'    }',
+						'    balance = balance.subtract(amount);',
+						'}',
+					],
+				}
+			case 'java-library-api':
+				return {
+					sampleCodeTitle: 'Book controller endpoint',
+					sampleCodeLanguage: 'Java',
+					sampleCodeLines: [
+						'@PostMapping("/books")',
+						'public ResponseEntity<BookDto> createBook(@RequestBody CreateBookRequest request) {',
+						'    Book saved = libraryService.createBook(request.title(), request.author());',
+						'    return ResponseEntity.status(HttpStatus.CREATED)',
+						'        .body(new BookDto(saved.getId(), saved.getTitle(), saved.getAuthor()));',
+						'}',
+					],
+				}
+			case 'pg-ecommerce-db':
+				return {
+					sampleCodeTitle: 'Order summary query',
+					sampleCodeLanguage: 'SQL',
+					sampleCodeLines: [
+						'SELECT o.id,',
+						'       c.email,',
+						'       SUM(oi.quantity * oi.unit_price) AS total_amount',
+						'FROM orders o',
+						'JOIN customers c ON c.id = o.customer_id',
+						'JOIN order_items oi ON oi.order_id = o.id',
+						'GROUP BY o.id, c.email;',
+					],
+				}
+			case 'redis-cache-layer':
+				return {
+					sampleCodeTitle: 'Cache-first read',
+					sampleCodeLanguage: 'JavaScript',
+					sampleCodeLines: [
+						'async function getUserProfile(userId) {',
+						'  const cacheKey = `user:${userId}`',
+						'  const cached = await redis.get(cacheKey)',
+						'  if (cached) return JSON.parse(cached)',
+						'  const profile = await db.users.findById(userId)',
+						'  await redis.set(cacheKey, JSON.stringify(profile), \'EX\', 300)',
+						'  return profile',
+						'}',
+					],
+				}
+			case 'pg-redis-hybrid':
+				return {
+					sampleCodeTitle: 'Read-through service',
+					sampleCodeLanguage: 'JavaScript',
+					sampleCodeLines: [
+						'async function getCatalogPage(categoryId) {',
+						'  const key = `catalog:${categoryId}`',
+						'  const cached = await redis.get(key)',
+						'  if (cached) return JSON.parse(cached)',
+						'  const rows = await pg.query(\'SELECT * FROM products WHERE category_id = $1\', [categoryId])',
+						'  await redis.set(key, JSON.stringify(rows.rows), \'EX\', 120)',
+						'  return rows.rows',
+						'}',
+					],
+				}
+			case 'ai-code-reviewer':
+				return {
+					sampleCodeTitle: 'Review request payload',
+					sampleCodeLanguage: 'JavaScript',
+					sampleCodeLines: [
+						'const prompt = [',
+						'  "Review this JavaScript for bugs, performance issues, and missing tests.",',
+						'  "Return a JSON array of findings with severity and summary.",',
+						'  codeSnippet,',
+						'].join("\\n\\n")',
+						'',
+						'const result = await client.responses.create({ model: "gpt-4.1-mini", input: prompt })',
+					],
+				}
+			case 'ai-chatbot-builder':
+				return {
+					sampleCodeTitle: 'Chat history assembly',
+					sampleCodeLanguage: 'JavaScript',
+					sampleCodeLines: [
+						'const messages = [',
+						'  { role: "system", content: "You are a concise study assistant." },',
+						'  ...history.slice(-8),',
+						'  { role: "user", content: userInput },',
+						']',
+						'',
+						'const response = await client.responses.create({ model: "gpt-4.1-mini", input: messages })',
+					],
+				}
+			case 'ai-content-gen':
+				return {
+					sampleCodeTitle: 'Output validation check',
+					sampleCodeLanguage: 'JavaScript',
+					sampleCodeLines: [
+						'function validateDraft(text) {',
+						'  if (text.length < 200) return "Generated draft is too short."',
+						'  if (!text.includes("Conclusion")) return "Missing conclusion section."',
+						'  return ""',
+						'}',
+						'',
+						'const validationError = validateDraft(generatedText)',
+					],
+				}
+			default:
+				return {
+					sampleCodeTitle: '',
+					sampleCodeLanguage: '',
+					sampleCodeLines: [],
+				}
+		}
+	}
+
+	const buildProjectView = (projectId: string): ProjectView => {
+		const detail = getProjectDetails(projectId)
+		const sample = getProjectSample(projectId)
+		return {
+			id: detail.id,
+			pathLabel: detail.pathLabel,
+			title: detail.title,
+			difficulty: detail.difficulty,
+			description: detail.description,
+			skills: detail.skills,
+			structure: detail.structure,
+			technologies: detail.technologies,
+			tips: detail.tips,
+			sampleCodeTitle: sample.sampleCodeTitle,
+			sampleCodeLanguage: sample.sampleCodeLanguage,
+			sampleCodeLines: sample.sampleCodeLines,
+		}
+	}
+
+	const currentProject = ref(buildProjectView(''))
+	const difficultyLabel = computed(() => {
+		if (currentProject.value.difficulty == 'Beginner') return copy.value.beginner
+		if (currentProject.value.difficulty == 'Intermediate') return copy.value.intermediate
+		if (currentProject.value.difficulty == 'Advanced') return copy.value.advanced
+		return currentProject.value.difficulty
+	})
+
+	onLoad(() => {
+		currentLanguage.value = getCurrentLanguage()
+		const projectId = uni.getStorageSync(ACTIVE_PROJECT_KEY) as string
+		if (projectId) {
+			currentProject.value = buildProjectView(projectId)
+			uni.setNavigationBarTitle({
+				title: currentProject.value.title,
+			})
+		}
+	})
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+
+	const handleStart = () => {
+		const projectId = currentProject.value.id
+		
+		// Map project IDs to actual page URLs
+		const projectUrlMap: Record<string, string> = {
+			'js-todo-app': '/pages/todoApp/todoApp',
+			// Add more project URLs as they are implemented
+		}
+
+		const url = projectUrlMap[projectId]
+		if (url) {
+			uni.navigateTo({
+				url: url
+			})
+		} else {
+			uni.showToast({
+				title: copy.value.bookmarked,
+				icon: 'success',
+				duration: 2000
+			})
+		}
+	}
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #f9fafb;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #666b86;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 28px;
+		line-height: 34px;
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.badge {
+		display: inline-block;
+		margin-top: 12px;
+		padding: 6px 12px;
+		border-radius: 6px;
+		font-size: 12px;
+		font-weight: 700;
+		text-transform: capitalize;
+	}
+
+	.badge-Beginner {
+		background-color: #dcfce7;
+		color: #166534;
+	}
+
+	.badge-Intermediate {
+		background-color: #fef3c7;
+		color: #b45309;
+	}
+
+	.badge-Advanced {
+		background-color: #fee2e2;
+		color: #991b1b;
+	}
+
+	.description-card,
+	.learning-card,
+	.structure-card,
+	.tech-card,
+	.code-card,
+	.tips-card {
+		padding: 18px 16px;
+		margin-bottom: 14px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 24px rgba(31, 41, 55, 0.08);
+	}
+
+	.section-label {
+		font-size: 14px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: #6b7280;
+		margin-bottom: 12px;
+		display: block;
+	}
+
+	.description-text {
+		font-size: 15px;
+		line-height: 24px;
+		color: #374151;
+	}
+
+	.learning-item {
+		margin-bottom: 12px;
+		padding-bottom: 12px;
+		border-bottom-width: 1px;
+		border-bottom-style: solid;
+		border-bottom-color: #e5e7eb;
+	}
+
+	.learning-item:last-child {
+		border-bottom-width: 0;
+	}
+
+	.learning-title {
+		font-size: 14px;
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.learning-detail {
+		margin-top: 4px;
+		font-size: 13px;
+		color: #6b7280;
+		line-height: 20px;
+	}
+
+	.structure-item {
+		margin-bottom: 12px;
+		padding-bottom: 12px;
+		border-bottom-width: 1px;
+		border-bottom-style: solid;
+		border-bottom-color: #e5e7eb;
+	}
+
+	.structure-item:last-child {
+		border-bottom-width: 0;
+	}
+
+	.structure-label {
+		font-size: 14px;
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.structure-desc {
+		margin-top: 4px;
+		font-size: 13px;
+		color: #6b7280;
+		line-height: 20px;
+	}
+
+	.tech-tag {
+		display: inline-block;
+		margin-right: 8px;
+		margin-bottom: 8px;
+		padding: 6px 12px;
+		border-radius: 6px;
+		background-color: #e5e7eb;
+	}
+
+	.tech-text {
+		font-size: 12px;
+		color: #374151;
+		font-weight: 600;
+	}
+
+	.code-meta {
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 12px;
+	}
+
+	.code-title {
+		font-size: 15px;
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.code-language {
+		padding: 4px 10px;
+		border-radius: 999px;
+		background-color: #dbeafe;
+		font-size: 12px;
+		font-weight: 700;
+		color: #1d4ed8;
+	}
+
+	.code-block {
+		padding: 14px;
+		border-radius: 14px;
+		background-color: #111827;
+	}
+
+	.code-line {
+		display: block;
+		font-family: monospace;
+		font-size: 12px;
+		line-height: 18px;
+		color: #e5e7eb;
+	}
+
+	.tip-item {
+		margin-bottom: 10px;
+		flex-direction: row;
+		align-items: flex-start;
+	}
+
+	.tip-bullet {
+		font-size: 14px;
+		color: #3b82f6;
+		margin-right: 8px;
+		margin-top: 2px;
+		font-weight: 700;
+	}
+
+	.tip-text {
+		flex: 1;
+		font-size: 13px;
+		color: #374151;
+		line-height: 20px;
+	}
+
+	.cta-section {
+		margin-bottom: 20px;
+	}
+
+	.start-button {
+		height: 48px;
+		border-radius: 12px;
+		border-width: 0;
+		background-color: #3b82f6;
+		color: #ffffff;
+		font-size: 16px;
+		font-weight: 700;
+	}
+
+	.cta-hint {
+		display: block;
+		margin-top: 12px;
+		font-size: 13px;
+		text-align: center;
+		color: #6b7280;
+	}
+</style>

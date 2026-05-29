@@ -1,0 +1,530 @@
+<!-- 功能：社区列表页，展示学习帖子、分类筛选、搜索和发帖入口。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="search-sticky">
+			<view class="search-box">
+				<text class="search-icon">?</text>
+				<input
+					v-model="searchQuery"
+					class="search-input"
+					:placeholder="copy.searchPlaceholder"
+					confirm-type="search"
+					@input="handleSearchInput"
+					@confirm="handleSearchConfirm"
+				/>
+			</view>
+			<text class="search-meta">{{ filteredArticles.length }} {{ filteredArticles.length == 1 ? copy.relatedArticleSingular : copy.relatedArticlePlural }}</text>
+		</view>
+
+		<view class="post featured">
+			<text class="tag">{{ copy.trendTag }}</text>
+			<text class="post-title">{{ trendTitle }}</text>
+			<text class="post-copy">{{ trendSummary }}</text>
+			<text class="post-meta featured-meta">{{ trendMeta }}</text>
+		</view>
+
+		<view
+			v-for="article in filteredArticles"
+			:key="article.id"
+			class="post"
+			@tap="openArticle(article.id)"
+		>
+			<text class="list-tag">{{ article.badge }}</text>
+			<text class="post-title">{{ article.title }}</text>
+			<text class="post-copy">{{ article.summary }}</text>
+			<view class="author-row">
+				<text class="post-meta">{{ article.meta }}</text>
+				<view v-if="article.authorType == 'expert'" class="medal-icon medal-inline" aria-label="expert badge">
+					<text class="medal-star">*</text>
+				</view>
+			</view>
+		</view>
+
+		<view v-if="filteredArticles.length == 0" class="empty-card">
+			<text class="empty-title">{{ copy.emptyTitle }}</text>
+			<text class="empty-copy">{{ copy.emptyCopy }}</text>
+		</view>
+
+		<view class="floating-add" @tap="goToCreatePost">
+			<text class="floating-add-icon">+</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getApiUrl } from '../../utils/api'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+	import { setActiveCommunityPostId } from '../../utils/communityPosts.uts'
+
+	type CommunityArticle = {
+		id : string
+		title : string
+		summary : string
+		content : string
+		meta : string
+		badge : string
+		tags : string[]
+		author : string
+		authorType : string
+	}
+
+	const allArticles = ref([] as CommunityArticle[])
+	const searchQuery = ref('')
+	const filteredArticles = ref([] as CommunityArticle[])
+	const trendTitle = ref('Loading community trend...')
+	const trendSummary = ref('Analyzing current community posts.')
+	const trendMeta = ref('Community trend')
+	const currentLanguage = ref(getCurrentLanguage() as string)
+
+	const copyMap = {
+		en: {
+			searchPlaceholder: 'Search articles or trends',
+			relatedArticleSingular: 'related article',
+			relatedArticlePlural: 'related articles',
+			trendTag: 'Community Trend',
+			emptyTitle: 'No related articles found',
+			emptyCopy: 'Try broader keywords like AI, backend, project, debug, or interview.',
+			loadingTrendTitle: 'Loading community trend...',
+			loadingTrendSummary: 'Analyzing current community posts.',
+			loadingTrendMeta: 'Community trend',
+			emptyTrendTitle: 'No community trend yet',
+			emptyTrendSummary: 'Publish or approve a few posts to generate a live trend summary here.',
+			emptyTrendMeta: 'Waiting for posts',
+			matchedTrendPrefix: 'Matched topic',
+			hotTopicPrefix: 'Hot topic',
+			postCountSuffix: 'posts',
+			starterCountSuffix: 'starters',
+			featuredPostPrefix: 'Featured post',
+		},
+		zh: {
+			searchPlaceholder: '搜索文章或趋势',
+			relatedArticleSingular: '相关文章',
+			relatedArticlePlural: '相关文章',
+			trendTag: '社区趋势',
+			emptyTitle: '没有找到相关内容',
+			emptyCopy: '尝试输入关键词： AI, backend, project, debug或 interview.',
+			loadingTrendTitle: '加载社区趋势中...',
+			loadingTrendSummary: '分析当前社区帖子',
+			loadingTrendMeta: '社区趋势',
+			emptyTrendTitle: '尚未有社区趋势',
+			emptyTrendSummary: '发布或批准一些帖子来获取当下趋势总结',
+			emptyTrendMeta: '等待发帖',
+			matchedTrendPrefix: '匹配的主题',
+			hotTopicPrefix: '热点',
+			postCountSuffix: '帖子',
+			starterCountSuffix: 'starters',
+			featuredPostPrefix: 'Featured post',
+		},
+	} as any
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const normalizeText = (value : string): string => {
+		return value.toLowerCase().trim()
+	}
+
+	const normalizeTag = (value : string): string => {
+		return value.trim().toLowerCase()
+	}
+
+	const loadCommunityPosts = () => {
+		uni.request({
+			url: getApiUrl('/api/community/posts'),
+			method: 'GET',
+			timeout: 10000,
+			success: (res) => {
+				const data = res.data as any
+				if (res.statusCode == 200 && data != null && Array.isArray(data.items)) {
+					allArticles.value = data.items as CommunityArticle[]
+					applySearch()
+					return
+				}
+
+				allArticles.value = [] as CommunityArticle[]
+				filteredArticles.value = [] as CommunityArticle[]
+				updateTrend()
+			},
+			fail: () => {
+				allArticles.value = [] as CommunityArticle[]
+				filteredArticles.value = [] as CommunityArticle[]
+				updateTrend()
+			},
+		})
+	}
+
+	const isSubsequenceMatch = (query : string, target : string): boolean => {
+		if (query.length == 0) {
+			return true
+		}
+
+		let queryIndex = 0
+		for (let i = 0; i < target.length; i++) {
+			if (target[i] == query[queryIndex]) {
+				queryIndex += 1
+				if (queryIndex == query.length) {
+					return true
+				}
+			}
+		}
+
+		return false
+	}
+
+	const getArticleSearchText = (article : CommunityArticle): string => {
+		return normalizeText(article.title + ' ' + article.summary + ' ' + article.badge + ' ' + article.tags.join(' '))
+	}
+
+	const getMatchScore = (query : string, article : CommunityArticle): number => {
+		const normalizedQuery = normalizeText(query)
+		if (normalizedQuery.length == 0) {
+			return 1
+		}
+
+		const target = getArticleSearchText(article)
+		if (target.indexOf(normalizedQuery) >= 0) {
+			return 5
+		}
+
+		const queryParts = normalizedQuery.split(' ').filter((part) : boolean => part.length > 0)
+		let score = 0
+		for (const part of queryParts) {
+			if (target.indexOf(part) >= 0) {
+				score += 2
+				continue
+			}
+
+			if (isSubsequenceMatch(part, target)) {
+				score += 1
+			}
+		}
+
+		return score
+	}
+
+	const setEmptyTrend = () => {
+		trendTitle.value = copy.value.emptyTrendTitle
+		trendSummary.value = copy.value.emptyTrendSummary
+		trendMeta.value = copy.value.emptyTrendMeta
+	}
+
+	const getRepresentativeArticle = (articles : CommunityArticle[], topic : string): CommunityArticle | null => {
+		if (articles.length == 0) {
+			return null
+		}
+
+		let bestArticle = articles[0]
+		let bestScore = -1
+		for (const article of articles) {
+			const score = getMatchScore(topic, article)
+			if (score > bestScore) {
+				bestScore = score
+				bestArticle = article
+			}
+		}
+
+		return bestArticle
+	}
+
+	const updateTrend = () => {
+		const normalizedQuery = normalizeText(searchQuery.value)
+		const sourceArticles = normalizedQuery.length > 0 ? filteredArticles.value : allArticles.value
+		if (sourceArticles.length == 0) {
+			setEmptyTrend()
+			return
+		}
+
+		if (normalizedQuery.length > 0) {
+			const leadArticle = sourceArticles[0]
+			trendTitle.value = leadArticle.title
+			trendSummary.value = leadArticle.summary.length > 0 ? leadArticle.summary : leadArticle.content
+			trendMeta.value = copy.value.matchedTrendPrefix + '  ' + normalizedQuery + '  ' + sourceArticles.length + ' ' + (sourceArticles.length == 1 ? copy.value.relatedArticleSingular : copy.value.relatedArticlePlural)
+			return
+		}
+
+		const topicCounts = {} as Record<string, number>
+		for (const article of allArticles.value) {
+			const uniqueTags = [] as string[]
+			for (const rawTag of article.tags) {
+				const tag = normalizeTag(rawTag)
+				if (tag.length == 0 || uniqueTags.indexOf(tag) >= 0) {
+					continue
+				}
+				uniqueTags.push(tag)
+				topicCounts[tag] = (topicCounts[tag] || 0) + 1
+			}
+		}
+
+		let hottestTopic = ''
+		let hottestCount = 0
+		for (const topic in topicCounts) {
+			if (topicCounts[topic] > hottestCount) {
+				hottestTopic = topic
+				hottestCount = topicCounts[topic]
+			}
+		}
+
+		if (hottestTopic.length == 0) {
+			const leadArticle = allArticles.value[0]
+			trendTitle.value = leadArticle.title
+			trendSummary.value = leadArticle.summary.length > 0 ? leadArticle.summary : leadArticle.content
+			trendMeta.value = copy.value.featuredPostPrefix + '  ' + allArticles.value.length + ' ' + copy.value.starterCountSuffix
+			return
+		}
+
+		const topicArticles = allArticles.value.filter((article) : boolean => {
+			return article.tags.map((tag) => normalizeTag(tag)).indexOf(hottestTopic) >= 0
+		})
+		const representativeArticle = getRepresentativeArticle(topicArticles, hottestTopic)
+		trendTitle.value = representativeArticle != null ? representativeArticle.title : hottestTopic
+		trendSummary.value = representativeArticle != null
+			? (representativeArticle.summary.length > 0 ? representativeArticle.summary : representativeArticle.content)
+			: hottestTopic
+		trendMeta.value = copy.value.hotTopicPrefix + '  ' + hottestTopic + '  ' + hottestCount + ' ' + copy.value.postCountSuffix
+	}
+
+	const applySearch = () => {
+		const normalizedQuery = normalizeText(searchQuery.value)
+		if (normalizedQuery.length == 0) {
+			filteredArticles.value = allArticles.value
+			updateTrend()
+			return
+		}
+
+		const matched = allArticles.value
+			.map((article) => {
+				return {
+					article,
+					score: getMatchScore(normalizedQuery, article),
+				}
+			})
+			.filter((item) : boolean => item.score > 0)
+			.sort((left, right) : number => right.score - left.score)
+			.map((item) => item.article)
+
+		filteredArticles.value = matched
+		updateTrend()
+	}
+
+	const handleSearchInput = () => {
+		applySearch()
+	}
+
+	const handleSearchConfirm = () => {
+		applySearch()
+	}
+
+	const goToCreatePost = () => {
+		uni.navigateTo({
+			url: '/pages/communityCreate/communityCreate',
+		})
+	}
+
+	const openArticle = (postId : string) => {
+		setActiveCommunityPostId(postId)
+		uni.navigateTo({
+			url: '/pages/communityPost/communityPost',
+		})
+	}
+
+	onLoad(() => {
+		trendTitle.value = copy.value.loadingTrendTitle
+		trendSummary.value = copy.value.loadingTrendSummary
+		trendMeta.value = copy.value.loadingTrendMeta
+		loadCommunityPosts()
+	})
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+		loadCommunityPosts()
+	})
+</script>
+
+<style>
+	.page-shell {
+		flex: 1;
+		background-color: #f6fbff;
+	}
+
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 104px;
+		background-color: #f6fbff;
+	}
+
+	.search-sticky {
+		position: sticky;
+		top: 0;
+		z-index: 20;
+		padding-top: 4px;
+		padding-bottom: 14px;
+		background-color: #f6fbff;
+	}
+
+	.search-box {
+		height: 44px;
+		flex-direction: row;
+		align-items: center;
+		border-radius: 14px;
+		background-color: #ffffff;
+		border-width: 1px;
+		border-style: solid;
+		border-color: #7fb3c7;
+	}
+
+	.search-icon {
+		width: 40px;
+		text-align: center;
+		font-size: 20px;
+		line-height: 44px;
+		color: #6b90a1;
+	}
+
+	.search-input {
+		height: 44px;
+		flex: 1;
+		padding: 0 14px 0 0;
+		border-width: 0;
+		background-color: transparent;
+		color: #16202a;
+		font-size: 14px;
+	}
+
+	.search-meta {
+		margin-top: 8px;
+		padding-left: 4px;
+		font-size: 12px;
+		color: #688092;
+	}
+
+	.post {
+		padding: 20px 18px;
+		margin-bottom: 14px;
+		border-radius: 22px;
+		background-color: #ffffff;
+		box-shadow: 0 14px 28px rgba(42, 77, 117, 0.08);
+	}
+
+	.featured {
+		background-image: linear-gradient(180deg, #116f91 0%, #90b8cd 100%);
+	}
+
+	.tag {
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.86);
+	}
+
+	.list-tag {
+		font-size: 12px;
+		font-weight: 600;
+		color: #0f5d74;
+	}
+
+	.post-title {
+		margin-top: 10px;
+		font-size: 20px;
+		line-height: 28px;
+		font-weight: 700;
+		color: #14212d;
+	}
+
+	.featured .post-title {
+		color: #ffffff;
+	}
+
+	.post-copy {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #667085;
+	}
+
+	.featured .post-copy {
+		color: rgba(255, 255, 255, 0.92);
+	}
+
+	.post-meta {
+		margin-top: 12px;
+		font-size: 12px;
+		font-weight: 600;
+		color: #5d7486;
+	}
+
+	.author-row {
+		margin-top: 12px;
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.author-row .post-meta {
+		margin-top: 0;
+	}
+
+	.medal-icon {
+		margin-left: 8px;
+		width: 22px;
+		height: 22px;
+		border-radius: 11px;
+		align-items: center;
+		justify-content: center;
+		background-image: linear-gradient(180deg, #ffe9a8 0%, #f7c948 100%);
+		border-width: 1px;
+		border-style: solid;
+		border-color: rgba(255, 248, 214, 0.92);
+	}
+
+	.medal-inline {
+		margin-left: 8px;
+	}
+
+	.medal-star {
+		font-size: 11px;
+		font-weight: 700;
+		color: #8a6200;
+	}
+
+	.featured-meta {
+		color: rgba(255, 255, 255, 0.84);
+	}
+
+	.empty-card {
+		padding: 22px 18px;
+		border-radius: 22px;
+		background-color: #ffffff;
+		box-shadow: 0 14px 28px rgba(42, 77, 117, 0.08);
+	}
+
+	.empty-title {
+		font-size: 18px;
+		font-weight: 700;
+		color: #16202a;
+	}
+
+	.empty-copy {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #667085;
+	}
+
+	.floating-add {
+		position: fixed;
+		right: 25px;
+		bottom: 70px;
+		width: 50px;
+		height: 50px;
+		border-radius: 28px;
+		align-items: center;
+		justify-content: center;
+		background-color: #cad9df;
+		z-index: 999;
+	}
+
+	.floating-add-icon {
+		font-size: 30px;
+		line-height: 30px;
+		font-weight: 600;
+		color: #ffffff;
+	}
+</style>

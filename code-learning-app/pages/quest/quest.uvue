@@ -1,0 +1,1061 @@
+<!-- 功能：编程题挑战页，加载题目、提交代码、展示运行结果和错题记录。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="layout">
+
+						<view class="problem-panel">
+							<view class="header-row">
+								<text class="title">{{ title }}</text>
+								<text class="difficulty" :class="difficultyClass">{{ difficulty }}</text>
+							</view>
+
+							<text class="section-label">{{ copy.description }}</text>
+							<text class="body">{{ description }}</text>
+
+							<text class="section-label">{{ copy.example }}</text>
+							<view class="code-block">
+								<text class="code-text">{{ example }}</text>
+							</view>
+
+							<text class="section-label">{{ copy.constraints }}</text>
+							<view class="code-block">
+								<text class="code-text">{{ constraints }}</text>
+							</view>
+						</view>
+
+						<view class="editor-panel">
+							<view class="editor-header">
+								<text class="editor-title">{{ copy.code }}</text>
+								<text class="editor-lang">{{ languageLabel }}</text>
+							</view>
+
+							<view v-if="!judgeBackendAvailable" class="backend-warning">
+								<text class="backend-warning-copy">{{ backendWarningMessage }}</text>
+							</view>
+
+							<view class="language-row">
+								<button class="lang-button" :class="selectedLanguage == 'python' ? 'lang-active' : ''" @tap="switchLanguage('python')">Python</button>
+								<button class="lang-button" :class="selectedLanguage == 'java' ? 'lang-active' : ''" @tap="switchLanguage('java')">Java</button>
+							</view>
+
+							<textarea
+								class="editor-input"
+								v-model="editorCode"
+								:auto-height="true"
+								:maxlength="-1"
+							/>
+
+							<view class="action-row">
+								<button class="ghost" :loading="judgeLoading" @tap="runCode">{{ copy.run }}</button>
+								<button class="primary" :loading="judgeLoading" @tap="submitCode">{{ copy.submit }}</button>
+							</view>
+						</view>
+
+						<view class="result-panel" v-if="resultReady">
+							<view class="result-header">
+								<text class="result-title">{{ copy.judgeResult }}</text>
+								<text class="result-status" :class="judgeStatusClass">{{ judgeStatusLabel }}</text>
+							</view>
+
+							<view class="result-metrics">
+								<text class="metric">{{ copy.score }} {{ score }}</text>
+								<text class="metric">{{ copy.runtime }} {{ runtimeMs }} ms</text>
+								<text class="metric">{{ copy.memory }} {{ memoryLabel }}</text>
+							</view>
+
+							<text class="result-copy">{{ copy.errorType }} {{ errorType }}</text>
+							<text class="result-copy">{{ copy.hint }} {{ errorHint }}</text>
+							<text class="result-copy">{{ copy.summary }} {{ summary }}</text>
+
+							<text class="section-label">{{ copy.bestApproach }}</text>
+							<view class="result-block">
+								<text class="result-copy">{{ bestApproach }}</text>
+							</view>
+
+							<text class="section-label">{{ copy.reference }}</text>
+							<view class="result-block">
+								<text class="result-copy">{{ referenceTitle }}</text>
+								<text class="result-copy note">{{ referenceNote }}</text>
+							</view>
+
+							<text class="section-label">{{ copy.runLogs }}</text>
+							<view class="log-card" v-for="log in logs" :key="log.testName">
+								<view class="log-header">
+									<text class="log-title">{{ log.testName }}</text>
+									<text class="log-badge" :class="log.passed ? 'passed' : 'failed'">{{ log.passed ? copy.pass : copy.fail }}</text>
+								</view>
+								<text class="log-copy">{{ copy.expected }} {{ log.expected }}</text>
+								<text class="log-copy">{{ copy.actual }} {{ log.actual }}</text>
+								<text class="log-copy">{{ copy.time }} {{ log.durationMs }} ms</text>
+								<text class="log-copy">{{ copy.stdout }} {{ log.stdout.length > 0 ? log.stdout : copy.empty }}</text>
+								<text class="log-copy">{{ copy.stderr }} {{ log.stderr.length > 0 ? log.stderr : copy.empty }}</text>
+							</view>
+						</view>
+
+						<view class="reference-panel">
+							<text class="section-label">{{ copy.referenceSolution }}</text>
+							<view v-if="showReferenceSolutions">
+								<view class="language-row">
+									<button class="lang-button" :class="referenceLanguage == 'python' ? 'lang-active' : ''" @tap="switchReferenceLanguage('python')">Python</button>
+									<button class="lang-button" :class="referenceLanguage == 'java' ? 'lang-active' : ''" @tap="switchReferenceLanguage('java')">Java</button>
+								</view>
+								<text class="section-sub">{{ referenceLanguageLabel }}</text>
+								<view class="code-block">
+									<text class="code-text">{{ activeReferenceCode }}</text>
+								</view>
+							</view>
+							<view v-else class="result-block">
+								<text class="result-copy">{{ copy.unlockReference }}</text>
+							</view>
+						</view>
+			
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getApiOrigin, getApiUrl } from '../../utils/api'
+	import { recordTodayCheckIn } from '../../utils/checkIn.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	type JudgeLanguage = 'python' | 'java'
+
+	type StarterCodes = {
+		python: string
+		java: string
+	}
+
+	type QuestPayload = {
+		title: string
+		difficulty: string
+		difficultyClass: string
+		category: string
+		acceptance: string
+		description: string
+		example: string
+		constraints: string
+		starterCodes: StarterCodes
+		referenceSolutions: StarterCodes
+	}
+
+	type JudgeLog = {
+		testName: string
+		passed: boolean
+		expected: string
+		actual: string
+		stdout: string
+		stderr: string
+		durationMs: number
+	}
+
+	const isStarterCodes = (value : any): boolean => {
+		return value != null
+			&& typeof value == 'object'
+			&& typeof value.python == 'string'
+			&& typeof value.java == 'string'
+	}
+
+	const isQuestPayload = (value : any): boolean => {
+		return value != null
+			&& typeof value == 'object'
+			&& typeof value.title == 'string'
+			&& typeof value.difficulty == 'string'
+			&& typeof value.difficultyClass == 'string'
+			&& typeof value.category == 'string'
+			&& typeof value.acceptance == 'string'
+			&& typeof value.description == 'string'
+			&& typeof value.example == 'string'
+			&& typeof value.constraints == 'string'
+			&& isStarterCodes(value.starterCodes)
+			&& isStarterCodes(value.referenceSolutions)
+	}
+
+	const ACTIVE_QUEST_KEY = 'activeQuestId'
+	const QUEST_STATUS_PREFIX = 'questStatus:'
+	const LOGIN_USER_KEY = 'loggedInUser'
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			description: 'Description',
+			example: 'Example',
+			constraints: 'Constraints',
+			code: 'Code',
+			run: 'Run',
+			submit: 'Submit',
+			judgeResult: 'Judge Result',
+			score: 'Score',
+			runtime: 'Runtime',
+			memory: 'Memory',
+			errorType: 'Error Type:',
+			hint: 'Hint:',
+			summary: 'Summary:',
+			bestApproach: 'Best Approach',
+			reference: 'Reference',
+			runLogs: 'Run Logs',
+			pass: 'Pass',
+			fail: 'Fail',
+			expected: 'Expected:',
+			actual: 'Actual:',
+			time: 'Time:',
+			stdout: 'Stdout:',
+			stderr: 'Stderr:',
+			empty: '(empty)',
+			referenceSolution: 'Reference Solution',
+			unlockReference: 'Submit your solution to unlock the reference implementation.',
+			backendUnavailable: 'Judge backend unavailable. Problem content is loaded locally, but Run and Submit require a reachable `/api/judge` backend.',
+			backendLocal: 'Problem content is loaded locally. Judge requests will still try the backend at ',
+			backendFailed: 'Judge request failed. Verify the backend at ',
+			backendUnreachable: 'Unable to reach the judge backend at ',
+			invalidQuestResponse: 'Invalid quest response',
+			invalidJudgeResponse: 'Invalid judge response',
+			judgeRequestFailed: 'Judge request failed',
+			unableToReach: 'Unable to reach judge backend',
+			quest: 'Quest',
+			backendQuest: 'Backend Quest',
+			loadFromBackend: 'This quest must be loaded from the backend catalog.',
+		},
+		zh: {
+			description: '题目描述',
+			example: '示例',
+			constraints: '约束条件',
+			code: '代码',
+			run: '运行',
+			submit: '提交',
+			judgeResult: '评测结果',
+			score: '分数',
+			runtime: '运行时间',
+			memory: '内存',
+			errorType: '错误类型：',
+			hint: '提示：',
+			summary: '总结：',
+			bestApproach: '最佳思路',
+			reference: '参考信息',
+			runLogs: '运行日志',
+			pass: '通过',
+			fail: '失败',
+			expected: '期望：',
+			actual: '实际：',
+			time: '耗时：',
+			stdout: '标准输出：',
+			stderr: '标准错误：',
+			empty: '（空）',
+			referenceSolution: '参考解法',
+			unlockReference: '提交你的解答后即可解锁参考实现。',
+			backendUnavailable: '评测后端当前不可用。题目内容已使用本地数据加载，但运行和提交仍需要可访问的 `/api/judge` 后端。',
+			backendLocal: '题目内容已从本地加载。评测请求仍会尝试连接后端：',
+			backendFailed: '评测请求失败，请检查后端：',
+			backendUnreachable: '无法连接评测后端：',
+			invalidQuestResponse: '题目响应无效',
+			invalidJudgeResponse: '评测响应无效',
+			judgeRequestFailed: '评测请求失败',
+			unableToReach: '无法连接评测后端',
+			quest: '题目',
+			backendQuest: '后端题目',
+			loadFromBackend: '这个题目需要从后端题库加载。',
+		},
+	}
+	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+
+	const fallbackQuestCatalog : Record<string, QuestPayload> = {
+        'two-sum': {
+			title: 'Two Sum',
+			difficulty: 'Easy',
+			difficultyClass: 'easy',
+			category: 'Array',
+			acceptance: 'Acceptance 49.2%',
+			description: 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.',
+			example: 'Input: nums = [2,7,11,15], target = 9\nOutput: [0,1]\nExplanation: nums[0] + nums[1] == 9',
+			constraints: '2 <= nums.length <= 10^4\n-10^9 <= nums[i] <= 10^9\nOnly one valid answer exists.',
+			starterCodes: {
+				python: `def solve(nums, target):\n    # return the indices of the two values\n    return []\n`,
+				java: `class Solution {\n    public int[] solve(int[] nums, int target) {\n        return new int[0];\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `def solve(nums, target):
+	lookup = {}
+	for i, v in enumerate(nums):
+		need = target - v
+		if need in lookup:
+			return [lookup[need], i]
+		lookup[v] = i
+`,
+				java: `import java.util.*;
+class Solution {
+	public int[] solve(int[] nums, int target) {
+		Map<Integer, Integer> map = new HashMap<>();
+		for (int i = 0; i < nums.length; i++) {
+			int need = target - nums[i];
+			if (map.containsKey(need)) return new int[]{map.get(need), i};
+			map.put(nums[i], i);
+		}
+		return new int[0];
+	}
+}
+`,
+			},
+		},
+		'contains-duplicate': {
+			title: 'Contains Duplicate',
+			difficulty: 'Easy',
+			difficultyClass: 'easy',
+			category: 'Array',
+			acceptance: 'Acceptance 61.4%',
+			description: 'Given an integer array nums, return true if any value appears at least twice in the array and false if every element is distinct.',
+			example: 'Input: nums = [1,2,3,1]\nOutput: true',
+			constraints: '1 <= nums.length <= 10^5',
+			starterCodes: {
+				python: `def solve(nums):\n    # return True if any duplicate exists\n    return False\n`,
+				java: `class Solution {\n    public boolean solve(int[] nums) {\n        return false;\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `def solve(nums):\n    return len(set(nums)) != len(nums)\n`,
+				java: `import java.util.*;\nclass Solution {\n    public boolean solve(int[] nums) {\n        Set<Integer> seen = new HashSet<>();\n        for (int n : nums) {\n            if (!seen.add(n)) return true;\n        }\n        return false;\n    }\n}\n`,
+			},
+		},
+		'product-except-self': {
+			title: 'Product of Array Except Self',
+			difficulty: 'Medium',
+			difficultyClass: 'medium',
+			category: 'Array',
+			acceptance: 'Acceptance 66.7%',
+			description: 'Return an array answer such that answer[i] is equal to the product of all the elements of nums except nums[i].',
+			example: 'Input: nums = [1,2,3,4]\nOutput: [24,12,8,6]',
+			constraints: '2 <= nums.length <= 10^5\nDo not use division.',
+			starterCodes: {
+				python: `def solve(nums):\n    # return the product array without using division\n    return []\n`,
+				java: `class Solution {\n    public int[] solve(int[] nums) {\n        return new int[0];\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `def solve(nums):\n    n = len(nums)\n    res = [1] * n\n    prefix = 1\n    for i in range(n):\n        res[i] = prefix\n        prefix *= nums[i]\n    suffix = 1\n    for i in range(n - 1, -1, -1):\n        res[i] *= suffix\n        suffix *= nums[i]\n    return res\n`,
+				java: `class Solution {\n    public int[] solve(int[] nums) {\n        int n = nums.length;\n        int[] res = new int[n];\n        Arrays.fill(res, 1);\n        int prefix = 1;\n        for (int i = 0; i < n; i++) {\n            res[i] = prefix;\n            prefix *= nums[i];\n        }\n        int suffix = 1;\n        for (int i = n - 1; i >= 0; i--) {\n            res[i] *= suffix;\n            suffix *= nums[i];\n        }\n        return res;\n    }\n}\n`,
+			},
+		},
+		'merge-strings': {
+			title: 'Merge Strings Alternately',
+			difficulty: 'Easy',
+			difficultyClass: 'easy',
+			category: 'Two Pointers',
+			acceptance: 'Acceptance 82.1%',
+			description: 'You are given two strings word1 and word2. Merge the strings by adding letters in alternating order, starting with word1.',
+			example: 'Input: word1 = "abc", word2 = "pqr"\nOutput: "apbqcr"',
+			constraints: '1 <= word1.length, word2.length <= 100',
+			starterCodes: {
+				python: `def solve(word1, word2):\n    # return the merged string\n    return ""\n`,
+				java: `class Solution {\n    public String solve(String word1, String word2) {\n        return "";\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `def solve(word1, word2):\n    i = j = 0\n    parts = []\n    while i < len(word1) or j < len(word2):\n        if i < len(word1):\n            parts.append(word1[i])\n            i += 1\n        if j < len(word2):\n            parts.append(word2[j])\n            j += 1\n    return "".join(parts)\n`,
+				java: `class Solution {\n    public String solve(String word1, String word2) {\n        StringBuilder sb = new StringBuilder();\n        int i = 0, j = 0;\n        while (i < word1.length() || j < word2.length()) {\n            if (i < word1.length()) sb.append(word1.charAt(i++));\n            if (j < word2.length()) sb.append(word2.charAt(j++));\n        }\n        return sb.toString();\n    }\n}\n`,
+			},
+		},
+		'best-time-stock': {
+			title: 'Best Time to Buy and Sell Stock',
+			difficulty: 'Easy',
+			difficultyClass: 'easy',
+			category: 'Two Pointers',
+			acceptance: 'Acceptance 55.3%',
+			description: 'Choose one day to buy and one later day to sell for the maximum profit.',
+			example: 'Input: prices = [7,1,5,3,6,4]\nOutput: 5',
+			constraints: '1 <= prices.length <= 10^5',
+			starterCodes: {
+				python: `def solve(prices):\n    # return the max profit\n    return 0\n`,
+				java: `class Solution {\n    public int solve(int[] prices) {\n        return 0;\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `def solve(prices):\n    min_price = float("inf")\n    max_profit = 0\n    for p in prices:\n        if p < min_price: min_price = p\n        elif p - min_price > max_profit: max_profit = p - min_price\n    return max_profit\n`,
+				java: `class Solution {\n    public int solve(int[] prices) {\n        int minPrice = Integer.MAX_VALUE;\n        int maxProfit = 0;\n        for (int p : prices) {\n            if (p < minPrice) minPrice = p;\n            else if (p - minPrice > maxProfit) maxProfit = p - minPrice;\n        }\n        return maxProfit;\n    }\n}\n`,
+			},
+		},
+		'longest-substring': {
+			title: 'Longest Substring Without Repeating Characters',
+			difficulty: 'Medium',
+			difficultyClass: 'medium',
+			category: 'Sliding Window',
+			acceptance: 'Acceptance 36.9%',
+			description: 'Given a string s, find the length of the longest substring without repeating characters.',
+			example: 'Input: s = "abcabcbb"\nOutput: 3\nExplanation: The answer is "abc".',
+			constraints: '0 <= s.length <= 5 * 10^4',
+			starterCodes: {
+				python: `def solve(s):\n    # return the longest unique-window length\n    return 0\n`,
+				java: `class Solution {\n    public int solve(String s) {\n        return 0;\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `def solve(s):\n    last = {}\n    start = 0\n    best = 0\n    for i, ch in enumerate(s):\n        if ch in last and last[ch] >= start:\n            start = last[ch] + 1\n        last[ch] = i\n        best = max(best, i - start + 1)\n    return best\n`,
+				java: `import java.util.*;\nclass Solution {\n    public int solve(String s) {\n        int[] last = new int[128];\n        Arrays.fill(last, -1);\n        int start = 0, best = 0;\n        for (int i = 0; i < s.length(); i++) {\n            char c = s.charAt(i);\n            if (last[c] >= start) start = last[c] + 1;\n            last[c] = i;\n            best = Math.max(best, i - start + 1);\n        }\n        return best;\n    }\n}\n`,
+			},
+		},
+		'valid-parentheses': {
+			title: 'Valid Parentheses',
+			difficulty: 'Easy',
+			difficultyClass: 'easy',
+			category: 'Stack',
+			acceptance: 'Acceptance 41.8%',
+			description: 'Given a string s containing just the characters (), {}, and [], determine if the input string is valid.',
+			example: 'Input: s = "()[]{}"\nOutput: true',
+			constraints: '1 <= s.length <= 10^4\ns consists of parentheses only.',
+			starterCodes: {
+				python: `def solve(s):\n    # return True if the parentheses are valid\n    return False\n`,
+				java: `class Solution {\n    public boolean solve(String s) {\n        return false;\n    }\n}\n`,
+			},
+			referenceSolutions: {
+			python: `def solve(s):
+	stack = []
+	pairs = {')':'(', ']':'[', '}':'{'}
+	for ch in s:
+		if ch in pairs.values():
+			stack.append(ch)
+		elif ch in pairs:
+			if not stack or stack.pop() != pairs[ch]:
+				return False
+		else:
+			return False
+	return not stack
+`,
+				java: `import java.util.*;
+class Solution {
+	public boolean solve(String s) {
+		Deque<Character> st = new ArrayDeque<>();
+		for (char c : s.toCharArray()) {
+			if (c == '(' || c == '[' || c == '{') st.push(c);
+			else {
+				if (st.isEmpty()) return false;
+				char t = st.pop();
+				if ((c == ')' && t != '(') || (c == ']' && t != '[') || (c == '}' && t != '{')) return false;
+			}
+		}
+		return st.isEmpty();
+	}
+}
+`,
+			},
+		},
+		'min-stack': {
+			title: 'Min Stack',
+			difficulty: 'Medium',
+			difficultyClass: 'medium',
+			category: 'Stack',
+			acceptance: 'Acceptance 56.2%',
+			description: 'Design a stack that supports push, pop, top, and retrieving the minimum element in constant time.',
+			example: 'Input: ["MinStack","push","push","push","getMin","pop","top","getMin"]\nOutput: [null,null,null,null,-3,null,0,-2]',
+			constraints: 'Implement all operations in O(1) time.',
+			starterCodes: {
+				python: `class MinStack:\n    def __init__(self):\n        # initialize your stack\n        pass\n\n    def push(self, val):\n        pass\n\n    def pop(self):\n        pass\n\n    def top(self):\n        return 0\n\n    def getMin(self):\n        return 0\n`,
+				java: `class MinStack {\n    public MinStack() {\n    }\n\n    public void push(int val) {\n    }\n\n    public void pop() {\n    }\n\n    public int top() {\n        return 0;\n    }\n\n    public int getMin() {\n        return 0;\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `class MinStack:\n    def __init__(self):\n        self.stack = []\n        self.minstack = []\n\n    def push(self, val):\n        self.stack.append(val)\n        if not self.minstack or val <= self.minstack[-1]:\n            self.minstack.append(val)\n\n    def pop(self):\n        val = self.stack.pop()\n        if val == self.minstack[-1]:\n            self.minstack.pop()\n\n    def top(self):\n        return self.stack[-1]\n\n    def getMin(self):\n        return self.minstack[-1]\n`,
+				java: `import java.util.*;\nclass MinStack {\n    private Deque<Integer> stack = new ArrayDeque<>();\n    private Deque<Integer> mins = new ArrayDeque<>();\n    public MinStack() {}\n    public void push(int val) {\n        stack.push(val);\n        if (mins.isEmpty() || val <= mins.peek()) mins.push(val);\n    }\n    public void pop() {\n        int v = stack.pop();\n        if (v == mins.peek()) mins.pop();\n    }\n    public int top() { return stack.peek(); }\n    public int getMin() { return mins.peek(); }\n}\n`,
+			},
+		},
+		'daily-temperatures': {
+			title: 'Daily Temperatures',
+			difficulty: 'Medium',
+			difficultyClass: 'medium',
+			category: 'Monotonic Stack',
+			acceptance: 'Acceptance 67.5%',
+			description: 'Given an array of daily temperatures, return an array such that answer[i] is the number of days until a warmer temperature.',
+			example: 'Input: temperatures = [73,74,75,71,69,72,76,73]\nOutput: [1,1,4,2,1,1,0,0]',
+			constraints: '1 <= temperatures.length <= 10^5',
+			starterCodes: {
+				python: `def solve(temperatures):\n    # return the waiting days for a warmer temperature\n    return []\n`,
+				java: `class Solution {\n    public int[] solve(int[] temperatures) {\n        return new int[0];\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `def solve(temperatures):\n    n = len(temperatures)\n    res = [0] * n\n    stack = []  # indexes of decreasing temperatures\n    for i, t in enumerate(temperatures):\n        while stack and temperatures[stack[-1]] < t:\n            idx = stack.pop()\n            res[idx] = i - idx\n        stack.append(i)\n    return res\n`,
+				java: `import java.util.*;\nclass Solution {\n    public int[] solve(int[] temperatures) {\n        int n = temperatures.length;\n        int[] res = new int[n];\n        Deque<Integer> st = new ArrayDeque<>();\n        for (int i = 0; i < n; i++) {\n            while (!st.isEmpty() && temperatures[st.peek()] < temperatures[i]) {\n                int idx = st.pop();\n                res[idx] = i - idx;\n            }\n            st.push(i);\n        }\n        return res;\n    }\n}\n`,
+			},
+		},
+		'invert-binary-tree': {
+			title: 'Invert Binary Tree',
+			difficulty: 'Easy',
+			difficultyClass: 'easy',
+			category: 'Tree',
+			acceptance: 'Acceptance 78.3%',
+			description: 'Given the root of a binary tree, invert the tree and return its root.',
+			example: 'Input: root = [4,2,7,1,3,6,9]\nOutput: [4,7,2,9,6,3,1]',
+			constraints: 'The number of nodes in the tree is in the range [0, 100].',
+			starterCodes: {
+				python: `class TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef solve(root):\n    # return the inverted tree root\n    return root\n`,
+				java: `class TreeNode {\n    int val;\n    TreeNode left;\n    TreeNode right;\n\n    TreeNode(int val) {\n        this.val = val;\n    }\n}\n\nclass Solution {\n    public TreeNode solve(TreeNode root) {\n        return root;\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `class TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef solve(root):\n    if root is None: return None\n    root.left, root.right = solve(root.right), solve(root.left)\n    return root\n`,
+				java: `class TreeNode {\n    int val;\n    TreeNode left;\n    TreeNode right;\n    TreeNode(int val) { this.val = val; }\n}\nclass Solution {\n    public TreeNode solve(TreeNode root) {\n        if (root == null) return null;\n        TreeNode left = solve(root.left);\n        TreeNode right = solve(root.right);\n        root.left = right;\n        root.right = left;\n        return root;\n    }\n}\n`,
+			},
+		},
+		'binary-level-order': {
+			title: 'Binary Tree Level Order Traversal',
+			difficulty: 'Medium',
+			difficultyClass: 'medium',
+			category: 'Tree',
+			acceptance: 'Acceptance 70.8%',
+			description: 'Given the root of a binary tree, return the level order traversal of its nodes values.',
+			example: 'Input: root = [3,9,20,null,null,15,7]\nOutput: [[3],[9,20],[15,7]]',
+			constraints: 'The number of nodes in the tree is in the range [0, 2000].',
+			starterCodes: {
+				python: `class TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef solve(root):\n    # return the level-order traversal\n    return []\n`,
+				java: `import java.util.*;\n\nclass TreeNode {\n    int val;\n    TreeNode left;\n    TreeNode right;\n\n    TreeNode(int val) {\n        this.val = val;\n    }\n}\n\nclass Solution {\n    public List<List<Integer>> solve(TreeNode root) {\n        return new ArrayList<>();\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `class TreeNode:\n    def __init__(self, val=0, left=None, right=None):\n        self.val = val\n        self.left = left\n        self.right = right\n\ndef solve(root):\n    if not root: return []\n    from collections import deque\n    q = deque([root])\n    out = []\n    while q:\n        level = []\n        for _ in range(len(q)):\n            node = q.popleft()\n            level.append(node.val)\n            if node.left: q.append(node.left)\n            if node.right: q.append(node.right)\n        out.append(level)\n    return out\n`,
+				java: `import java.util.*;\nclass TreeNode { int val; TreeNode left; TreeNode right; TreeNode(int val) { this.val = val; } }\nclass Solution {\n    public List<List<Integer>> solve(TreeNode root) {\n        List<List<Integer>> res = new ArrayList<>();\n        if (root == null) return res;\n        Queue<TreeNode> q = new LinkedList<>();\n        q.add(root);\n        while (!q.isEmpty()) {\n            int sz = q.size();\n            List<Integer> level = new ArrayList<>();\n            for (int i = 0; i < sz; i++) {\n                TreeNode node = q.poll();\n                level.add(node.val);\n                if (node.left != null) q.add(node.left);\n                if (node.right != null) q.add(node.right);\n            }\n            res.add(level);\n        }\n        return res;\n    }\n}\n`,
+			},
+		},
+		'number-of-islands': {
+			title: 'Number of Islands',
+			difficulty: 'Medium',
+			difficultyClass: 'medium',
+			category: 'Graph',
+			acceptance: 'Acceptance 61.1%',
+			description: 'Given an m x n 2D binary grid grid, return the number of islands.',
+			example: 'Input: grid = [["1","1","0","0","0"],["1","1","0","0","0"],["0","0","1","0","0"],["0","0","0","1","1"]]\nOutput: 3',
+			constraints: '1 <= m, n <= 300',
+			starterCodes: {
+				python: `def solve(grid):\n    # return the number of islands\n    return 0\n`,
+				java: `class Solution {\n    public int solve(char[][] grid) {\n        return 0;\n    }\n}\n`,
+			},
+			referenceSolutions: {
+				python: `def solve(grid):\n    if not grid: return 0\n    m, n = len(grid), len(grid[0])\n    def dfs(i, j):\n        if i < 0 or j < 0 or i >= m or j >= n or grid[i][j] != "1": return\n        grid[i][j] = "0"\n        dfs(i+1, j); dfs(i-1, j); dfs(i, j+1); dfs(i, j-1)\n    count = 0\n    for i in range(m):\n        for j in range(n):\n            if grid[i][j] == "1":\n                count += 1\n                dfs(i, j)\n    return count\n`,
+				java: `class Solution {\n    public int solve(char[][] grid) {\n        if (grid == null || grid.length == 0) return 0;\n        int m = grid.length, n = grid[0].length;\n        int count = 0;\n        for (int i = 0; i < m; i++) {\n            for (int j = 0; j < n; j++) {\n                if (grid[i][j] == \`1\') {\n                    count++;\n                    dfs(grid, i, j, m, n);\n                }\n            }\n        }\n        return count;\n    }\n    private void dfs(char[][] g, int i, int j, int m, int n) {\n        if (i < 0 || j < 0 || i >= m || j >= n || g[i][j] != \'1\') return;\n        g[i][j] = \'0\';\n        dfs(g, i+1, j, m, n); dfs(g, i-1, j, m, n); dfs(g, i, j+1, m, n); dfs(g, i, j-1, m, n);\n    }\n}\n`,
+			},
+		},
+	}
+
+	const emptyQuest = (questId : string): QuestPayload => {
+		return {
+			title: questId.length > 0 ? questId : copy.value.quest,
+			difficulty: 'Unknown',
+			difficultyClass: 'medium',
+			category: copy.value.backendQuest,
+			acceptance: '',
+			description: copy.value.loadFromBackend,
+			example: '',
+			constraints: '',
+			starterCodes: {
+				python: '',
+				java: '',
+			},
+			referenceSolutions: {
+				python: '',
+				java: '',
+			},
+		}
+	}
+
+	const getFallbackQuest = (questId : string): QuestPayload => {
+		return fallbackQuestCatalog[questId] || emptyQuest(questId)
+	}
+
+	const getJudgeApiBase = (): string => {
+		return getApiUrl('/api/judge')
+	}
+
+	const getJudgeApiOriginLabel = (): string => {
+		const origin = getApiOrigin()
+		if (origin.length > 0) {
+			return origin
+		}
+		return '/api/judge'
+	}
+
+	const activeQuestId = ref('two-sum')
+	const initialQuest = getFallbackQuest('two-sum')
+	const title = ref(initialQuest.title)
+	const difficulty = ref(initialQuest.difficulty)
+	const difficultyClass = ref(initialQuest.difficultyClass)
+	const category = ref(initialQuest.category)
+	const acceptance = ref(initialQuest.acceptance)
+	const description = ref(initialQuest.description)
+	const example = ref(initialQuest.example)
+	const constraints = ref(initialQuest.constraints)
+
+	const selectedLanguage = ref('python' as JudgeLanguage)
+	const languageLabel = ref('Python')
+	const pythonCode = ref(initialQuest.starterCodes.python)
+	const javaCode = ref(initialQuest.starterCodes.java)
+	const editorCode = ref(initialQuest.starterCodes.python)
+
+	const referencePython = ref(initialQuest.referenceSolutions ? initialQuest.referenceSolutions.python : '')
+	const referenceJava = ref(initialQuest.referenceSolutions ? initialQuest.referenceSolutions.java : '')
+	const judgeBackendAvailable = ref(true)
+	const showReferenceSolutions = ref(false)
+	const referenceLanguage = ref('python' as JudgeLanguage)
+	const referenceLanguageLabel = ref('Python')
+	const activeReferenceCode = ref(referencePython.value)
+
+	const judgeLoading = ref(false)
+	const backendWarningMessage = ref(copy.value.backendUnavailable)
+	const resultReady = ref(false)
+	const judgeStatusLabel = ref('')
+	const judgeStatusClass = ref('')
+	const errorType = ref('')
+	const errorHint = ref('')
+	const summary = ref('')
+	const score = ref(0)
+	const runtimeMs = ref(0)
+	const memoryLabel = ref('N/A')
+	const bestApproach = ref('')
+	const referenceTitle = ref('')
+	const referenceNote = ref('')
+	const logs = ref([] as JudgeLog[])
+
+	const setQuestContent = (quest : QuestPayload) => {
+		title.value = quest.title
+		difficulty.value = quest.difficulty
+		difficultyClass.value = quest.difficultyClass
+		category.value = quest.category
+		acceptance.value = quest.acceptance
+		description.value = quest.description
+		example.value = quest.example
+		constraints.value = quest.constraints
+		pythonCode.value = quest.starterCodes.python
+		javaCode.value = quest.starterCodes.java
+		referencePython.value = quest.referenceSolutions ? quest.referenceSolutions.python : ''
+		referenceJava.value = quest.referenceSolutions ? quest.referenceSolutions.java : ''
+		selectedLanguage.value = 'python'
+		languageLabel.value = 'Python'
+		editorCode.value = pythonCode.value
+		showReferenceSolutions.value = false
+		referenceLanguage.value = 'python'
+		referenceLanguageLabel.value = 'Python'
+		activeReferenceCode.value = referencePython.value
+	}
+
+	const syncCurrentCode = () => {
+		if (selectedLanguage.value == 'python') {
+			pythonCode.value = editorCode.value
+			return
+		}
+		if (selectedLanguage.value == 'java') {
+			javaCode.value = editorCode.value
+			return
+		}
+	}
+
+	const switchLanguage = (language : JudgeLanguage) => {
+		syncCurrentCode()
+		selectedLanguage.value = language
+		if (language == 'python') {
+			languageLabel.value = 'Python'
+			editorCode.value = pythonCode.value
+			return
+		}
+		if (language == 'java') {
+			languageLabel.value = 'Java'
+			editorCode.value = javaCode.value
+			return
+		}
+	}
+
+	const switchReferenceLanguage = (language : JudgeLanguage) => {
+		referenceLanguage.value = language
+		if (language == 'python') {
+			referenceLanguageLabel.value = 'Python'
+			activeReferenceCode.value = referencePython.value
+			return
+		}
+		if (language == 'java') {
+			referenceLanguageLabel.value = 'Java'
+			activeReferenceCode.value = referenceJava.value
+			return
+		}
+	}
+
+	const fetchQuest = () => {
+		uni.request({
+			url: getJudgeApiBase() + '/quest/' + activeQuestId.value,
+			method: 'GET',
+			success: (res) => {
+				const questData = res.data as any
+				if (res.statusCode == 200 && isQuestPayload(questData)) {
+					judgeBackendAvailable.value = true
+					setQuestContent(questData as QuestPayload)
+					return
+				}
+				loadFallbackQuest()
+				uni.showToast({
+					title: copy.value.invalidQuestResponse,
+					icon: 'none',
+				})
+			},
+			fail: () => {
+				loadFallbackQuest()
+			},
+		})
+	}
+
+	const loadFallbackQuest = () => {
+		const fallbackQuest = getFallbackQuest(activeQuestId.value)
+		judgeBackendAvailable.value = false
+		backendWarningMessage.value = copy.value.backendLocal + getJudgeApiOriginLabel() + '.'
+		setQuestContent(fallbackQuest)
+	}
+
+	const updateTaskStatus = (mode : string, status : string) => {
+		recordTodayCheckIn()
+		if (mode == 'submit' && status == 'accepted') {
+			uni.setStorageSync(QUEST_STATUS_PREFIX + activeQuestId.value, 'solved')
+			return
+		}
+		uni.setStorageSync(QUEST_STATUS_PREFIX + activeQuestId.value, 'attempted')
+	}
+
+	const applyJudgeResult = (mode : string, result : any) => {
+		if (result == null || typeof result != 'object') {
+			uni.showToast({
+				title: copy.value.invalidJudgeResponse,
+				icon: 'none',
+			})
+			return
+		}
+		resultReady.value = true
+		judgeStatusLabel.value = result.summary
+		judgeStatusClass.value = result.status == 'accepted' ? 'status-pass' : 'status-fail'
+		errorType.value = result.errorType
+		errorHint.value = result.errorHint
+		summary.value = result.summary
+		score.value = Number(result.score || 0)
+		runtimeMs.value = Number(result.runtimeMs || 0)
+		memoryLabel.value = result.memoryKb == null ? 'N/A' : String(result.memoryKb) + ' KB'
+		bestApproach.value = result.bestApproach || ''
+		referenceTitle.value = result.referenceTitle || ''
+		referenceNote.value = result.referenceNote || ''
+		logs.value = (result.logs || []) as JudgeLog[]
+		updateTaskStatus(mode, result.status as string)
+	}
+
+	const judge = (mode : string) => {
+		syncCurrentCode()
+		judgeLoading.value = true
+		const username = (uni.getStorageSync(LOGIN_USER_KEY) as string).trim()
+		uni.request({
+			url: getJudgeApiBase() + '/' + mode,
+			method: 'POST',
+			header: {
+				'Content-Type': 'application/json',
+			},
+			data: {
+				questId: activeQuestId.value,
+				language: selectedLanguage.value,
+				code: editorCode.value,
+				username,
+			},
+			success: (res) => {
+				const data = res.data as any
+				if (res.statusCode == 200 && data != null && typeof data == 'object' && data.result != null) {
+					judgeBackendAvailable.value = true
+					applyJudgeResult(mode, data.result)
+					return
+				}
+				judgeBackendAvailable.value = false
+				backendWarningMessage.value = copy.value.backendFailed + getJudgeApiOriginLabel() + '.'
+				uni.showToast({
+					title: copy.value.judgeRequestFailed,
+					icon: 'none',
+				})
+			},
+			fail: () => {
+				judgeBackendAvailable.value = false
+				backendWarningMessage.value = copy.value.backendUnreachable + getJudgeApiOriginLabel() + '.'
+				uni.showToast({
+					title: copy.value.unableToReach,
+					icon: 'none',
+				})
+			},
+			complete: () => {
+				judgeLoading.value = false
+			},
+		})
+	}
+
+	const runCode = () => {
+		judge('run')
+	}
+
+	const submitCode = () => {
+		showReferenceSolutions.value = true
+		judge('submit')
+	}
+
+	onLoad(() => {
+		currentLanguage.value = getCurrentLanguage()
+		backendWarningMessage.value = copy.value.backendUnavailable
+		const questId = uni.getStorageSync(ACTIVE_QUEST_KEY) as string
+		activeQuestId.value = questId.length > 0 ? questId : 'two-sum'
+		setQuestContent(getFallbackQuest(activeQuestId.value))
+		fetchQuest()
+	})
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+		if (!judgeBackendAvailable.value) {
+			backendWarningMessage.value = copy.value.backendLocal + getJudgeApiOriginLabel() + '.'
+		}
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		background-color: #f8fafc;
+	}
+
+	.layout {
+		padding: 14px 14px 24px;
+	}
+
+	.problem-panel,
+	.editor-panel,
+	.result-panel {
+		padding: 18px 16px;
+		border-radius: 20px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+	}
+
+	.editor-panel,
+	.result-panel {
+		margin-top: 14px;
+	}
+
+	.header-row,
+	.editor-header,
+	.tag-row,
+	.action-row,
+	.result-header,
+	.log-header,
+	.language-row,
+	.result-metrics {
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.header-row,
+	.editor-header,
+	.action-row,
+	.result-header {
+		justify-content: space-between;
+	}
+
+	.title {
+		flex: 1;
+		padding-right: 10px;
+		font-size: 24px;
+		font-weight: 700;
+		color: #0f172a;
+	}
+
+	.difficulty,
+	.result-status,
+	.log-badge,
+	.metric {
+		padding: 6px 10px;
+		border-radius: 999px;
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.easy {
+		background-color: #dff7ea;
+		color: #0c7a43;
+	}
+
+	.medium {
+		background-color: #fff1d8;
+		color: #b45309;
+	}
+
+	.hard {
+		background-color: #fee2e2;
+		color: #b91c1c;
+	}
+
+	.tag-row {
+		margin-top: 12px;
+	}
+
+	.tag {
+		margin-right: 8px;
+		padding: 6px 10px;
+		border-radius: 999px;
+		background-color: #eff6ff;
+		font-size: 12px;
+		color: #1d4ed8;
+	}
+
+	.section-label {
+		margin-top: 18px;
+		font-size: 13px;
+		font-weight: 700;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #64748b;
+	}
+
+	.body,
+	.result-copy,
+	.log-copy {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 22px;
+		color: #334155;
+	}
+
+	.code-block {
+		margin-top: 10px;
+		padding: 14px 12px;
+		border-radius: 14px;
+		background-color: #0f172a;
+	}
+
+	.code-text {
+		font-size: 13px;
+		line-height: 20px;
+		color: #d8e4ff;
+	}
+
+	.editor-title,
+	.result-title,
+	.log-title {
+		font-size: 18px;
+		font-weight: 700;
+		color: #0f172a;
+	}
+
+	.editor-lang {
+		font-size: 13px;
+		color: #64748b;
+	}
+
+	.language-row {
+		margin-top: 14px;
+	}
+
+	.lang-button {
+		flex: 1;
+		height: 38px;
+		margin-right: 8px;
+		border-radius: 12px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: #cbd5e1;
+		background-color: #ffffff;
+		color: #334155;
+		font-size: 13px;
+		font-weight: 600;
+	}
+
+	.lang-active {
+		background-color: #dbeafe;
+		border-color: #60a5fa;
+		color: #1d4ed8;
+	}
+
+	.editor-input {
+		width: 100%;
+		min-height: 280px;
+		margin-top: 14px;
+		padding: 14px 12px;
+		border-radius: 14px;
+		background-color: #0f172a;
+		color: #d8e4ff;
+		font-size: 13px;
+		line-height: 20px;
+	}
+
+	.action-row {
+		margin-top: 14px;
+	}
+
+	.ghost,
+	.primary {
+		flex: 1;
+		height: 42px;
+		border-radius: 12px;
+		font-size: 15px;
+		font-weight: 600;
+	}
+
+	.ghost {
+		margin-right: 10px;
+		border-width: 1px;
+		border-style: solid;
+		border-color: #cbd5e1;
+		background-color: #ffffff;
+		color: #0f172a;
+	}
+
+	.primary {
+		border-width: 0;
+		background-color: #1d4ed8;
+		color: #ffffff;
+	}
+
+	.result-metrics {
+		margin-top: 14px;
+		flex-wrap: wrap;
+	}
+
+	.metric {
+		margin-right: 8px;
+		margin-bottom: 8px;
+		background-color: #eff6ff;
+		color: #1d4ed8;
+	}
+
+	.status-pass {
+		background-color: #dff7ea;
+		color: #0c7a43;
+	}
+
+	.status-fail {
+		background-color: #fee2e2;
+		color: #b91c1c;
+	}
+
+	.result-block,
+	.log-card {
+		margin-top: 10px;
+		padding: 14px 12px;
+		border-radius: 14px;
+		background-color: #f8fafc;
+	}
+
+	.log-card {
+		margin-bottom: 10px;
+	}
+
+	.log-header {
+		justify-content: space-between;
+	}
+
+	.passed {
+		background-color: #dff7ea;
+		color: #0c7a43;
+	}
+
+	.failed {
+		background-color: #fee2e2;
+		color: #b91c1c;
+	}
+
+	.note {
+		color: #64748b;
+	}
+
+	.backend-warning {
+		margin-top: 14px;
+		padding: 12px;
+		border-radius: 14px;
+		background-color: #fff7ed;
+		border-width: 1px;
+		border-style: solid;
+		border-color: #fdba74;
+	}
+
+	.backend-warning-copy {
+		font-size: 13px;
+		line-height: 20px;
+		color: #9a3412;
+	}
+</style>

@@ -1,0 +1,209 @@
+<!-- 功能：学习中心页，展示学习路径、模块进度和课程入口。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="feature-card primary">
+			<text class="card-kicker">{{ copy.recommended }}</text>
+			<text class="card-title">{{ copy.aiPathTitle }}</text>
+			<text class="card-copy">{{ copy.aiPathCopy }}</text>
+			<button class="action" @tap="openPath('/pages/aiBasics/aiBasics')">{{ copy.startPath }}</button>
+		</view>
+
+		<view class="section">
+			<text class="section-title">{{ copy.learningPaths }}</text>
+			<view class="mini-card" @tap="openPath('/pages/javascript/javascript')">
+				<text class="mini-title">JavaScript</text>
+				<text class="mini-copy">{{ copy.javascriptCopy }}</text>
+			</view>
+			<view class="mini-card" @tap="openPath('/pages/java/java')">
+				<text class="mini-title">Java</text>
+				<text class="mini-copy">{{ copy.javaCopy }}</text>
+			</view>
+			<view class="mini-card" @tap="openPath('/pages/postgresqlRedis/postgresqlRedis')">
+				<text class="mini-title">{{ copy.pgRedisTitle }}</text>
+				<text class="mini-copy">{{ copy.pgRedisCopy }}</text>
+			</view>
+			<view class="mini-card" @tap="openPath('/pages/aiBasics/aiBasics')">
+				<text class="mini-title">{{ copy.aiPathTitle }}</text>
+				<text class="mini-copy">{{ copy.aiPathListCopy }}</text>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	type LanguageCode = 'en' | 'zh'
+	type StudyCopy = {
+		eyebrow: string
+		title: string
+		subtitle: string
+		recommended: string
+		aiPathTitle: string
+		aiPathCopy: string
+		startPath: string
+		learningPaths: string
+		javascriptCopy: string
+		javaCopy: string
+		pgRedisTitle: string
+		pgRedisCopy: string
+		aiPathListCopy: string
+	}
+
+	const currentLanguage = ref(getCurrentLanguage() as LanguageCode)
+	const copyMap = {
+		en: {
+			eyebrow: 'Study',
+			title: 'Choose your learning path',
+			subtitle: 'Follow one of four guided tracks and jump into a focused page for each topic.',
+			recommended: 'Recommended',
+			aiPathTitle: 'AI Basic Knowledge',
+			aiPathCopy: 'Start with core concepts like models, prompts, tokens, embeddings, and practical AI workflows.',
+			startPath: 'Start This Path',
+			learningPaths: 'Learning Paths',
+			javascriptCopy: 'Learn variables, arrays, async flow, DOM basics, and problem solving for modern web apps.',
+			javaCopy: 'Build a solid base in syntax, OOP, collections, exceptions, and backend-oriented thinking.',
+			pgRedisTitle: 'PostgreSQL and Redis',
+			pgRedisCopy: 'Study relational data, indexing, caching, and how databases and in-memory stores work together.',
+			aiPathListCopy: 'Understand machine learning basics, LLM concepts, prompt design, and responsible AI usage.',
+		},
+		zh: {
+			eyebrow: '学习',
+			title: '选择你的学习路径',
+			subtitle: '沿着四条引导式学习路径前进，并进入每个主题的专注页面。',
+			recommended: '推荐',
+			aiPathTitle: 'AI 基础知识',
+			aiPathCopy: '从模型、提示词、Token、Embedding 和实用 AI 工作流等核心概念开始学习。',
+			startPath: '开始学习',
+			learningPaths: '学习路径',
+			javascriptCopy: '学习变量、数组、异步流程、DOM 基础，以及现代 Web 应用的问题解决能力。',
+			javaCopy: '打好语法、面向对象、集合、异常和后端思维的基础。',
+			pgRedisTitle: 'PostgreSQL 与 Redis',
+			pgRedisCopy: '学习关系型数据、索引、缓存，以及数据库和内存存储如何协同工作。',
+			aiPathListCopy: '理解机器学习基础、LLM 概念、提示词设计和负责任的 AI 使用方式。',
+		},
+	} as Record<LanguageCode, StudyCopy>
+
+	const copy = computed(() : StudyCopy => {
+		return copyMap[currentLanguage.value]
+	})
+
+	// Open the selected learning path as a normal detail page from the Study tab.
+	const openPath = (url : string) => {
+		uni.navigateTo({
+			url,
+		})
+	}
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #fff7ef;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #0f5d74;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #1f2937;
+	}
+
+	.subtitle {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #6b7280;
+	}
+
+	.feature-card {
+		padding: 22px 18px;
+		border-radius: 24px;
+		margin-bottom: 18px;
+	}
+
+	.primary {
+		background-image: linear-gradient(180deg, #7bc895c3 0%, #91d467c3 52%, #91d467c3 100%);
+	}
+
+	.card-kicker {
+		font-size: 13px;
+		color: rgba(255, 255, 255, 0.84);
+	}
+
+	.card-title {
+		margin-top: 10px;
+		font-size: 24px;
+		font-weight: 700;
+		color: #ffffff;
+	}
+
+	.card-copy {
+		margin-top: 12px;
+		font-size: 14px;
+		line-height: 21px;
+		color: rgba(255, 255, 255, 0.92);
+	}
+
+	.action {
+		margin-top: 18px;
+		height: 42px;
+		border-radius: 14px;
+		border-width: 0;
+		background-color: rgba(45, 30, 18, 0.75);
+		color: #ffffff;
+		font-size: 15px;
+		font-weight: 600;
+	}
+
+	.section-title {
+		margin-bottom: 12px;
+		font-size: 18px;
+		font-weight: 700;
+		color: #1f2937;
+	}
+
+	.mini-card {
+		padding: 18px 16px;
+		margin-bottom: 12px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08);
+	}
+
+	.mini-title {
+		font-size: 16px;
+		font-weight: 600;
+		color: #111827;
+	}
+
+	.mini-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #6b7280;
+	}
+</style>

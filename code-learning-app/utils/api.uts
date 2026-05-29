@@ -1,0 +1,34 @@
+// 功能：统一封装后端 API 基础地址和请求方法，供页面模块复用。
+const API_ORIGIN_OVERRIDE_KEY = 'apiOriginOverride'
+const PUBLIC_API_ORIGIN = 'http://127.0.0.1:8080'
+
+function trimTrailingSlash(value : string): string {
+	if (value.endsWith('/')) {
+		return value.substring(0, value.length - 1)
+	}
+	return value
+}
+
+export function getApiOrigin() : string {
+	const storedOrigin = (uni.getStorageSync(API_ORIGIN_OVERRIDE_KEY) as string).trim()
+	if (storedOrigin.length > 0) {
+		return trimTrailingSlash(storedOrigin)
+	}
+
+	if (PUBLIC_API_ORIGIN.length > 0) {
+		return trimTrailingSlash(PUBLIC_API_ORIGIN)
+	}
+
+	return ''
+}
+
+export function getApiUrl(path : string) : string {
+	const normalizedPath = path.startsWith('/') ? path : '/' + path
+	const origin = getApiOrigin()
+
+	if (origin.length == 0) {
+		return normalizedPath
+	}
+
+	return origin + normalizedPath
+}

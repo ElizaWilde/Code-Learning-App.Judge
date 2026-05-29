@@ -1,0 +1,234 @@
+<!-- 功能：社区发帖页，提供标题、分类、内容填写与帖子发布能力。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="editor-card">
+			<text class="field-label">{{ copy.titleLabel }}</text>
+			<input
+				v-model="title"
+				class="field-input"
+				:placeholder="copy.titlePlaceholder"
+				maxlength="80"
+			/>
+
+			<text class="field-label field-spacing">{{ copy.contentLabel }}</text>
+			<textarea
+				v-model="content"
+				class="field-textarea"
+				:placeholder="copy.contentPlaceholder"
+				:maxlength="1200"
+			/>
+
+			<text class="field-label field-spacing">{{ copy.tagsLabel }}</text>
+			<input
+				v-model="tagsText"
+				class="field-input"
+				:placeholder="copy.tagsPlaceholder"
+			/>
+		</view>
+
+		<button class="post-button" @tap="submitPost">{{ copy.postButton }}</button>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getApiUrl } from '../../utils/api'
+	import { getCurrentUsername } from '../../utils/communityPosts.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const title = ref('')
+	const content = ref('')
+	const tagsText = ref('')
+	const submitting = ref(false)
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			eyebrow: 'Create',
+			title: 'Write a post',
+			subtitle: 'Share a question, idea, project update, or study note.',
+			titleLabel: 'Title',
+			titlePlaceholder: 'Write a clear post title',
+			contentLabel: 'Content',
+			contentPlaceholder: 'What do you want to share?',
+			tagsLabel: 'Tags',
+			tagsPlaceholder: 'ai, frontend, backend',
+			postButton: 'Post',
+			requiredError: 'Title and content are required',
+			submittedSuccess: 'Submitted for review',
+			submitFailed: 'Submit failed',
+			backendUnavailable: 'Unable to reach backend',
+		},
+		zh: {
+			eyebrow: '创建',
+			title: '写一篇帖子',
+			subtitle: '分享你的问题、想法、项目进展或学习笔记。',
+			titleLabel: '标题',
+			titlePlaceholder: '写一个清晰的帖子标题',
+			contentLabel: '内容',
+			contentPlaceholder: '你想分享什么？',
+			tagsLabel: '标签',
+			tagsPlaceholder: 'ai, frontend, backend',
+			postButton: '发布',
+			requiredError: '标题和内容不能为空',
+			submittedSuccess: '已提交审核',
+			submitFailed: '提交失败',
+			backendUnavailable: '无法连接后端',
+		},
+	} as any
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const submitPost = () => {
+		const trimmedTitle = title.value.trim()
+		const trimmedContent = content.value.trim()
+		if (trimmedTitle.length == 0 || trimmedContent.length == 0) {
+			uni.showToast({
+				title: copy.value.requiredError,
+				icon: 'none',
+			})
+			return
+		}
+
+		if (submitting.value) {
+			return
+		}
+
+		submitting.value = true
+		const tags = tagsText.value.split(',').map((tag) : string => tag.trim()).filter((tag) : boolean => tag.length > 0)
+		uni.request({
+			url: getApiUrl('/api/community/posts'),
+			method: 'POST',
+			timeout: 10000,
+			header: {
+				'Content-Type': 'application/json',
+			},
+			data: {
+				title: trimmedTitle,
+				content: trimmedContent,
+				tags,
+				author: getCurrentUsername(),
+			},
+			success: (res) => {
+				if (res.statusCode == 201) {
+					uni.showToast({
+						title: copy.value.submittedSuccess,
+						icon: 'success',
+					})
+					setTimeout(() => {
+						uni.navigateBack()
+					}, 500)
+					return
+				}
+
+				uni.showToast({
+					title: copy.value.submitFailed,
+					icon: 'none',
+				})
+			},
+			fail: () => {
+				uni.showToast({
+					title: copy.value.backendUnavailable,
+					icon: 'none',
+				})
+			},
+			complete: () => {
+				submitting.value = false
+			},
+		})
+	}
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #f6fbff;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #0f5d74;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #16202a;
+	}
+
+	.subtitle {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #5f6b78;
+	}
+
+	.editor-card {
+		padding: 20px 18px;
+		border-radius: 22px;
+		background-color: #ffffff;
+		box-shadow: 0 14px 28px rgba(42, 77, 117, 0.08);
+	}
+
+	.field-label {
+		font-size: 14px;
+		font-weight: 600;
+		color: #173246;
+	}
+
+	.field-spacing {
+		margin-top: 18px;
+	}
+
+	.field-input,
+	.field-textarea {
+		margin-top: 10px;
+		padding: 12px 14px;
+		border-radius: 14px;
+		background-color: #f7fbfe;
+		border-width: 1px;
+		border-style: solid;
+		border-color: #c4dce7;
+		color: #16202a;
+		font-size: 14px;
+	}
+
+	.field-input {
+		height: 44px;
+	}
+
+	.field-textarea {
+		width: 100%;
+		min-height: 180px;
+	}
+
+	.post-button {
+		margin-top: 18px;
+		height: 46px;
+		border-radius: 14px;
+		border-width: 0;
+		background-color: #116f91;
+		color: #ffffff;
+		font-size: 16px;
+		font-weight: 600;
+	}
+</style>

@@ -1,0 +1,17 @@
+// 功能：提供简单国际化文案映射和语言读取方法，支持页面多语言展示。
+const APP_LANGUAGE_KEY = 'appLanguage'
+
+export type LanguageCode = 'en' | 'zh'
+
+export function getCurrentLanguage() : LanguageCode {
+	const storedLanguage = (uni.getStorageSync(APP_LANGUAGE_KEY) as string).trim()
+	if (storedLanguage == 'zh') {
+		return 'zh'
+	}
+
+	return 'en'
+}
+
+export function setCurrentLanguage(language : LanguageCode) {
+	uni.setStorageSync(APP_LANGUAGE_KEY, language)
+}

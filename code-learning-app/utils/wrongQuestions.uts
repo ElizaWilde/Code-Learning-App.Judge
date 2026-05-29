@@ -1,0 +1,143 @@
+// 功能：管理错题本数据，封装错题保存、查询、更新和删除逻辑。
+import { getApiUrl } from './api.uts'
+
+const WRONG_QUESTIONS_KEY_PREFIX = 'wrongQuestionCollection::'
+const LOGIN_USER_KEY = 'loggedInUser'
+
+export type PracticeQuestion = {
+	id : string
+	prompt : string
+	options : string[]
+	correctAnswer : string
+}
+
+export type WrongQuestionItem = {
+	pathId : string
+	pathTitle : string
+	moduleId : string
+	moduleTitle : string
+	questionId : string
+	prompt : string
+	selectedAnswer : string
+	correctAnswer : string
+}
+
+export type WrongQuestionGroup = {
+	pathId : string
+	pathTitle : string
+	items : WrongQuestionItem[]
+}
+
+const DEFAULT_PATH_GROUPS = [
+	{ pathId: 'javascript', pathTitle: 'JavaScript' },
+	{ pathId: 'java', pathTitle: 'Java' },
+	{ pathId: 'postgresql-redis', pathTitle: 'PostgreSQL and Redis' },
+	{ pathId: 'ai-basics', pathTitle: 'AI Basic Knowledge' },
+] as { pathId : string, pathTitle : string }[]
+
+function readWrongQuestionItems() : WrongQuestionItem[] {
+	const storedValue = uni.getStorageSync(getWrongQuestionsStorageKey())
+	if (storedValue == null || storedValue == '') {
+		return []
+	}
+
+	return storedValue as WrongQuestionItem[]
+}
+
+function getCurrentUsername() : string {
+	const username = uni.getStorageSync(LOGIN_USER_KEY) as string
+	if (username.length > 0) {
+		return username
+	}
+
+	return 'guest'
+}
+
+function getWrongQuestionsStorageKey() : string {
+	return WRONG_QUESTIONS_KEY_PREFIX + getCurrentUsername()
+}
+
+function syncWrongAnswerSnapshot(
+	username : string,
+	pathId : string,
+	pathTitle : string,
+	moduleId : string,
+	moduleTitle : string,
+	wrongCount : number
+) {
+	uni.request({
+		url: getApiUrl('/api/analytics/wrong-answers'),
+		method: 'POST',
+		header: {
+			'Content-Type': 'application/json',
+		},
+		data: {
+			username,
+			pathId,
+			pathTitle,
+			moduleId,
+			moduleTitle,
+			wrongCount,
+		},
+	})
+}
+
+export function saveWrongQuestionsForModule(
+	pathId : string,
+	pathTitle : string,
+	moduleId : string,
+	moduleTitle : string,
+	questions : PracticeQuestion[],
+	answers : string[]
+) {
+	const currentItems = readWrongQuestionItems()
+	const retainedItems = currentItems.filter((item) : boolean => item.moduleId != moduleId)
+	const nextItems = [...retainedItems] as WrongQuestionItem[]
+	let wrongCount = 0
+
+	for (let i = 0; i < questions.length; i++) {
+		const question = questions[i]
+		const selectedAnswer = answers[i]
+		if (selectedAnswer == question.correctAnswer) {
+			continue
+		}
+		wrongCount += 1
+
+		nextItems.push({
+			pathId,
+			pathTitle,
+			moduleId,
+			moduleTitle,
+			questionId: question.id,
+			prompt: question.prompt,
+			selectedAnswer,
+			correctAnswer: question.correctAnswer,
+		})
+	}
+
+	uni.setStorageSync(getWrongQuestionsStorageKey(), nextItems)
+	syncWrongAnswerSnapshot(getCurrentUsername(), pathId, pathTitle, moduleId, moduleTitle, wrongCount)
+}
+
+export function getWrongQuestionGroups() : WrongQuestionGroup[] {
+	const items = readWrongQuestionItems()
+	const groups = [] as WrongQuestionGroup[]
+
+	for (const defaultGroup of DEFAULT_PATH_GROUPS) {
+		groups.push({
+			pathId: defaultGroup.pathId,
+			pathTitle: defaultGroup.pathTitle,
+			items: items.filter((item) : boolean => item.pathId == defaultGroup.pathId),
+		})
+	}
+
+	return groups
+}
+
+export function getTotalWrongQuestionCount() : number {
+	let total = 0
+	for (const group of getWrongQuestionGroups()) {
+		total += group.items.length
+	}
+	return total
+}

@@ -1,0 +1,264 @@
+<!-- 功能：PostgreSQL 与 Redis 学习页，展示数据库知识模块和实践入口。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="summary-card">
+			<text class="summary-title">{{ copy.whatYouWillLearn }}</text>
+			<text class="summary-copy">{{ copy.summary }}</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">{{ copy.modules }}</text>
+			<view class="lesson-card" @tap="openModule('postgres-fundamentals')">
+				<text class="lesson-title">{{ copy.module1Title }}</text>
+				<text class="lesson-copy">{{ copy.module1Copy }}</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('postgres-relations')">
+				<text class="lesson-title">{{ copy.module2Title }}</text>
+				<text class="lesson-copy">{{ copy.module2Copy }}</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('redis-basics')">
+				<text class="lesson-title">{{ copy.module3Title }}</text>
+				<text class="lesson-copy">{{ copy.module3Copy }}</text>
+			</view>
+			<view class="lesson-card" @tap="openModule('postgres-redis')">
+				<text class="lesson-title">{{ copy.module4Title }}</text>
+				<text class="lesson-copy">{{ copy.module4Copy }}</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="section-title">{{ copy.projectCases }}</text>
+			<view class="project-card" @tap="openProject('pg-ecommerce-db')">
+				<view class="project-header">
+					<text class="project-title">E-commerce Database</text>
+					<text class="project-badge">{{ copy.intermediate }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project1Copy }}</text>
+				<text class="project-tech">Tables · Relationships · Indexing</text>
+			</view>
+			<view class="project-card" @tap="openProject('redis-cache-layer')">
+				<view class="project-header">
+					<text class="project-title">Caching Layer with Redis</text>
+					<text class="project-badge">{{ copy.intermediate }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project2Copy }}</text>
+				<text class="project-tech">Redis · Expiration · Data Structures</text>
+			</view>
+			<view class="project-card" @tap="openProject('pg-redis-hybrid')">
+				<view class="project-header">
+					<text class="project-title">Hybrid Cache Architecture</text>
+					<text class="project-badge">{{ copy.advanced }}</text>
+				</view>
+				<text class="project-copy">{{ copy.project3Copy }}</text>
+				<text class="project-tech">PostgreSQL · Redis · Architecture</text>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { openStudyModule } from '../../utils/studyModule.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const ACTIVE_PROJECT_KEY = 'activeProjectId'
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			eyebrow: 'PostgreSQL and Redis',
+			title: 'Understand storage, caching, and fast data access',
+			subtitle: 'This path introduces relational queries, indexes, caching strategies, and common backend data flows.',
+			whatYouWillLearn: 'What you will learn',
+			summary: 'Tables, joins, indexing, Redis keys, cache patterns, and when to use each tool.',
+			modules: 'Modules',
+			module1Title: '1. PostgreSQL fundamentals',
+			module1Copy: 'Create tables, insert data, and query structured information with SQL.',
+			module2Title: '2. Relations and indexes',
+			module2Copy: 'Use joins and indexes to keep queries correct and fast.',
+			module3Title: '3. Redis basics',
+			module3Copy: 'Work with strings, hashes, expiration, and common cache data shapes.',
+			module4Title: '4. PostgreSQL plus Redis together',
+			module4Copy: 'Combine persistent storage with caching to improve response time.',
+			projectCases: 'Project Cases',
+			intermediate: 'Intermediate',
+			advanced: 'Advanced',
+			project1Copy: 'Design normalized tables for products, orders, and users with proper foreign keys and indexes.',
+			project2Copy: 'Implement session storage, leaderboards, and real-time counters using Redis data structures.',
+			project3Copy: 'Build a system that reads from PostgreSQL, caches hot data in Redis, and handles cache invalidation.',
+		},
+		zh: {
+			eyebrow: 'PostgreSQL 与 Redis',
+			title: '理解存储、缓存与快速数据访问',
+			subtitle: '这条路径会介绍关系查询、索引、缓存策略和常见后端数据流。',
+			whatYouWillLearn: '你将学到',
+			summary: '表、连接、索引、Redis Key、缓存模式以及各工具的使用场景。',
+			modules: '模块',
+			module1Title: '1. PostgreSQL 基础',
+			module1Copy: '创建表、插入数据，并使用 SQL 查询结构化信息。',
+			module2Title: '2. 关系与索引',
+			module2Copy: '使用连接和索引保持查询正确且高效。',
+			module3Title: '3. Redis 基础',
+			module3Copy: '学习字符串、哈希、过期机制和常见缓存数据结构。',
+			module4Title: '4. PostgreSQL 与 Redis 协同',
+			module4Copy: '结合持久化存储与缓存来提升响应速度。',
+			projectCases: '项目案例',
+			intermediate: '中级',
+			advanced: '高级',
+			project1Copy: '为商品、订单和用户设计规范化数据表，并设置正确的外键和索引。',
+			project2Copy: '使用 Redis 数据结构实现会话存储、排行榜和实时计数器。',
+			project3Copy: '构建一个从 PostgreSQL 读取、在 Redis 缓存热点数据并处理缓存失效的系统。',
+		},
+	} as any
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const openModule = (moduleId : string) => {
+		openStudyModule(moduleId)
+	}
+
+	const openProject = (projectId: string) => {
+		uni.setStorageSync(ACTIVE_PROJECT_KEY, projectId)
+		uni.navigateTo({
+			url: '/pages/projectShowcase/projectShowcase'
+		})
+	}
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #f7fbff;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #165b91;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #1f2937;
+	}
+
+	.subtitle {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #64748b;
+	}
+
+	.summary-card,
+	.lesson-card {
+		padding: 18px 16px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08);
+	}
+
+	.summary-card {
+		margin-bottom: 18px;
+		background-image: linear-gradient(180deg, #1d4ed8 0%, #60a5fa 100%);
+	}
+
+	.summary-title {
+		font-size: 18px;
+		font-weight: 700;
+		color: #ffffff;
+	}
+
+	.summary-copy {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: rgba(255, 255, 255, 0.92);
+	}
+
+	.section-title {
+		margin-bottom: 12px;
+		font-size: 18px;
+		font-weight: 700;
+		color: #1f2937;
+	}
+
+	.lesson-card {
+		margin-bottom: 12px;
+	}
+
+	.lesson-title {
+		font-size: 16px;
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.lesson-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #6b7280;
+	}
+
+	.project-card {
+		padding: 18px 16px;
+		margin-bottom: 12px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08);
+	}
+
+	.project-header {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.project-title {
+		font-size: 16px;
+		font-weight: 700;
+		color: #111827;
+		flex: 1;
+	}
+
+	.project-badge {
+		padding: 5px 10px;
+		border-radius: 6px;
+		background-color: #bfdbfe;
+		font-size: 12px;
+		font-weight: 700;
+		color: #1e40af;
+	}
+
+	.project-copy {
+		margin-top: 8px;
+		font-size: 13px;
+		line-height: 20px;
+		color: #6b7280;
+	}
+
+	.project-tech {
+		margin-top: 8px;
+		font-size: 12px;
+		color: #165b91;
+		font-weight: 600;
+	}
+</style>

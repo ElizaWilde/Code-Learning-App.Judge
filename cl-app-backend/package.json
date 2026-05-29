@@ -1,0 +1,27 @@
+{
+  "name": "cl-app-backend",
+  "version": "1.0.0",
+  "description": "Minimal Node.js and Express API running in Docker.",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "start:windows": "start-backend.cmd"
+  },
+  "keywords": [
+    "node",
+    "express",
+    "docker",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2"
+  }
+}

@@ -1,0 +1,204 @@
+<!-- 功能：错题本页，展示错题列表、筛选复习、查看解析和移除错题。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="summary-card">
+			<text class="summary-title">{{ totalWrongQuestionCount }}</text>
+			<text class="summary-copy">{{ copy.summaryCopy }}</text>
+		</view>
+
+		<view class="path-group" v-for="group in wrongQuestionGroups" :key="group.pathId">
+			<view class="path-header">
+				<text class="path-title">{{ group.pathTitle }}</text>
+				<text class="path-count">{{ group.items.length }}</text>
+			</view>
+
+			<text v-if="group.items.length == 0" class="empty-copy">{{ copy.emptyCopy }}</text>
+
+			<view v-for="item in group.items" :key="item.moduleId + '-' + item.questionId" class="question-card">
+				<text class="module-label">{{ item.moduleTitle }}</text>
+				<text class="question-prompt">{{ item.prompt }}</text>
+				<text class="answer user-answer">{{ copy.yourAnswer }} {{ item.selectedAnswer }}</text>
+				<text class="answer correct-answer">{{ copy.correctAnswer }} {{ item.correctAnswer }}</text>
+			</view>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getTotalWrongQuestionCount, getWrongQuestionGroups } from '../../utils/wrongQuestions.uts'
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const wrongQuestionGroups = ref(getWrongQuestionGroups())
+	const totalWrongQuestionCount = ref(0)
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			eyebrow: 'Review',
+			title: 'Wrong Question Collection',
+			subtitle: 'Your missed practice questions are grouped by learning path so you can review weak spots faster.',
+			summaryCopy: 'questions waiting for review',
+			emptyCopy: 'No wrong questions in this path yet.',
+			yourAnswer: 'Your answer:',
+			correctAnswer: 'Correct answer:',
+		},
+		zh: {
+			eyebrow: '复盘',
+			title: '错题本',
+			subtitle: '按学习路径整理你的错题，方便你更快回顾薄弱点。',
+			summaryCopy: '道题等待复习',
+			emptyCopy: '这个学习路径里还没有错题。',
+			yourAnswer: '你的答案：',
+			correctAnswer: '正确答案：',
+		},
+	}
+
+	const copy = computed(() => {
+		return copyMap[currentLanguage.value] || copyMap.en
+	})
+
+	const loadWrongQuestionCollection = () => {
+		currentLanguage.value = getCurrentLanguage()
+		wrongQuestionGroups.value = getWrongQuestionGroups()
+		totalWrongQuestionCount.value = getTotalWrongQuestionCount()
+	}
+
+	onLoad(() => {
+		loadWrongQuestionCollection()
+	})
+
+	onShow(() => {
+		loadWrongQuestionCollection()
+	})
+</script>
+
+<style>
+	.page {
+		min-height: 100vh;
+		padding: 20px 18px 28px;
+		background-color: #f8f6ff;
+	}
+
+	.hero {
+		padding: 12px 2px 18px;
+	}
+
+	.eyebrow {
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: #6b4cd3;
+	}
+
+	.title {
+		margin-top: 10px;
+		font-size: 30px;
+		line-height: 36px;
+		font-weight: 700;
+		color: #1b1d31;
+	}
+
+	.subtitle {
+		margin-top: 10px;
+		font-size: 14px;
+		line-height: 21px;
+		color: #666b86;
+	}
+
+	.summary-card {
+		padding: 22px 18px;
+		border-radius: 24px;
+		background-image: linear-gradient(180deg, #6a5cff 0%, #9f89f7 100%);
+		box-shadow: 0 14px 32px rgba(85, 68, 180, 0.12);
+	}
+
+	.summary-title {
+		font-size: 30px;
+		font-weight: 700;
+		color: #ffffff;
+	}
+
+	.summary-copy {
+		margin-top: 8px;
+		font-size: 14px;
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	.path-group {
+		margin-top: 16px;
+		padding: 18px 16px;
+		border-radius: 18px;
+		background-color: #ffffff;
+		box-shadow: 0 12px 26px rgba(65, 53, 130, 0.08);
+	}
+
+	.path-header {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.path-title {
+		font-size: 16px;
+		font-weight: 700;
+		color: #171925;
+	}
+
+	.path-count {
+		min-width: 24px;
+		padding: 4px 8px;
+		border-radius: 999px;
+		background-color: #ece8ff;
+		font-size: 12px;
+		font-weight: 700;
+		text-align: center;
+		color: #6b4cd3;
+	}
+
+	.empty-copy {
+		margin-top: 10px;
+		font-size: 13px;
+		color: #8b90a8;
+	}
+
+	.question-card {
+		margin-top: 12px;
+		padding: 14px 12px;
+		border-radius: 14px;
+		background-color: #f8f7ff;
+	}
+
+	.module-label {
+		font-size: 12px;
+		font-weight: 700;
+		text-transform: uppercase;
+		color: #6b4cd3;
+	}
+
+	.question-prompt {
+		margin-top: 8px;
+		font-size: 14px;
+		line-height: 21px;
+		font-weight: 600;
+		color: #1e2133;
+	}
+
+	.answer {
+		margin-top: 6px;
+		font-size: 13px;
+		line-height: 20px;
+	}
+
+	.user-answer {
+		color: #b45309;
+	}
+
+	.correct-answer {
+		color: #0f766e;
+	}
+</style>

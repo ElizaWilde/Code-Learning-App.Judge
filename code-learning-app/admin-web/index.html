@@ -1,0 +1,670 @@
+<!-- 功能：管理后台单页结构，定义数据管理、内容编辑和操作面板的 DOM 布局。 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>CodeBox Admin</title>
+	<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+	<!-- 登录区：未认证时展示，收集管理员账号密码并由 script.js 调用登录接口。 -->
+	<div class="login-shell" id="login-shell">
+		<div class="login-card">
+			<div class="login-copy">
+				<div class="language-switch language-switch-login">
+					<button class="language-button" id="login-language-en" type="button">English</button>
+					<button class="language-button" id="login-language-zh" type="button">中文</button>
+				</div>
+				<p class="login-kicker" data-i18n="login.kicker">CodeBox Admin Access</p>
+				<h1 class="login-title" data-i18n="login.title">Backend Management Login</h1>
+				<p class="login-text" data-i18n="login.text">Sign in to access the admin workspace for question bank updates, judge maintenance, and learning analytics.</p>
+			</div>
+
+			<!-- 登录表单：用户名和密码字段会在 submit 事件中被读取并提交到 /api/auth/login。 -->
+			<form class="login-form" id="login-form">
+				<label class="field">
+					<span data-i18n="login.username">Username</span>
+					<input id="username" name="username" type="text" autocomplete="username" placeholder="Enter username" data-i18n-placeholder="login.usernamePlaceholder" required>
+				</label>
+
+				<label class="field">
+					<span data-i18n="login.password">Password</span>
+					<input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter password" data-i18n-placeholder="login.passwordPlaceholder" required>
+				</label>
+
+				<p class="login-hint"><span data-i18n="login.hintLabel">Default API admin:</span> <code>admin</code> / <code>CodeBox123</code></p>
+				<p class="login-error" id="login-error" aria-live="polite"></p>
+
+				<button class="login-button" type="submit" data-i18n="login.signIn">Sign In</button>
+			</form>
+		</div>
+	</div>
+
+	<!-- 管理后台主体：登录成功后显示，内部按左侧导航切换不同管理模块。 -->
+	<div class="admin-shell is-hidden" id="admin-shell">
+		<!-- 侧边栏：展示品牌信息和模块导航，按钮的 data-module 与 JS 权限/切换逻辑对应。 -->
+		<aside class="sidebar">
+			<div class="brand-card">
+				<p class="brand-label" data-i18n="brand.label">Backend Management System</p>
+				<h1 class="brand-title">CodeBox Admin</h1>
+			</div>
+
+			<!-- 模块导航：题库、评测、统计、用户、社区审核五个后台功能入口。 -->
+			<nav class="module-nav">
+				<button class="module-item is-active" type="button" data-module="question-bank">
+					<span class="module-name" data-i18n="module.questionBank.name">Question Bank</span>
+					<span class="module-desc" data-i18n="module.questionBank.desc">Question bank maintenance</span>
+				</button>
+				<button class="module-item" type="button" data-module="judge-system">
+					<span class="module-name" data-i18n="module.judgeSystem.name">Judge System</span>
+					<span class="module-desc" data-i18n="module.judgeSystem.desc">Judge system maintenance</span>
+				</button>
+				<button class="module-item" type="button" data-module="learning-analytics">
+					<span class="module-name" data-i18n="module.learningAnalytics.name">Learning Analytics</span>
+					<span class="module-desc" data-i18n="module.learningAnalytics.desc">Learning data analytics</span>
+				</button>
+				<button class="module-item" type="button" data-module="user-management">
+					<span class="module-name" data-i18n="module.userManagement.name">User Management</span>
+					<span class="module-desc" data-i18n="module.userManagement.desc">Accounts, roles, and permissions</span>
+				</button>
+				<button class="module-item" type="button" data-module="community-moderation">
+					<span class="module-name" data-i18n="module.communityModeration.name">Community Moderation</span>
+					<span class="module-desc" data-i18n="module.communityModeration.desc">Review and moderate community posts</span>
+				</button>
+			</nav>
+		</aside>
+
+		<!-- 工作区：承载顶部状态、模块说明和当前模块的具体操作面板。 -->
+		<main class="workspace">
+			<!-- 顶栏：显示当前模块标题、语言切换、登录角色和退出按钮。 -->
+			<header class="topbar">
+				<div>
+					<p class="eyebrow" data-i18n="topbar.eyebrow">Web Admin</p>
+					<h2 class="page-title" id="page-title">Question Bank</h2>
+				</div>
+				<div class="topbar-actions">
+					<div class="language-switch">
+						<button class="language-button" id="admin-language-en" type="button">English</button>
+						<button class="language-button" id="admin-language-zh" type="button">中文</button>
+					</div>
+					<div class="role-badge" id="role-badge"></div>
+					<div class="status-chip" id="status-chip">Question Bank</div>
+					<button class="logout-button" id="logout-button" type="button" data-i18n="topbar.signOut">Sign Out</button>
+				</div>
+			</header>
+
+			<!-- 模块说明区：由 JS 根据当前模块动态写入标题、描述和权限提示。 -->
+			<section class="hero">
+				<h3 class="hero-title" id="hero-title">Question Bank</h3>
+				<p class="hero-copy" id="hero-copy">Browse all quests stored in the backend management service, create new quests, and update existing quest records.</p>
+				<p class="access-message" id="access-message"></p>
+			</section>
+
+			<!-- 用户管理模块：左侧加载用户列表和统计，右侧查看用户详情并修改角色/类型。 -->
+			<section class="content-grid module-grid is-hidden" id="user-management-workspace">
+				<div class="panel panel-nav">
+					<div class="panel-header">
+						<div>
+							<h4 data-i18n="user.directory">User Directory</h4>
+							<p class="panel-subtitle" id="user-management-status-copy">Load platform users from backend storage.</p>
+						</div>
+						<button class="secondary-button" type="button" id="refresh-users-button" data-i18n="common.refreshUsers">Refresh Users</button>
+					</div>
+					<div class="metric-grid" id="user-summary-metrics"></div>
+					<div class="user-directory" id="user-directory"></div>
+				</div>
+
+				<div class="panel panel-main">
+					<div class="panel-header">
+						<div>
+							<h4 data-i18n="user.details">User Details</h4>
+							<p class="panel-subtitle" id="user-selected-state">Select a user to review account details and update access.</p>
+						</div>
+					</div>
+					<div class="quest-empty" id="user-empty" data-i18n="dynamic.noUserSelected">No user selected.</div>
+					<div class="detail-card is-hidden" id="user-detail">
+						<div class="quest-detail-header">
+							<div>
+								<h3 class="quest-title" id="user-detail-name"></h3>
+								<p class="quest-id" id="user-detail-created"></p>
+							</div>
+							<div class="quest-tag-row" id="user-detail-permissions"></div>
+						</div>
+
+						<!-- 用户角色表单：保存选中用户的 role 与 userType，提交时调用用户更新接口。 -->
+						<form class="config-form top-gap" id="user-role-form">
+							<div class="resource-grid">
+								<label class="field">
+									<span data-i18n="user.role">Role</span>
+									<select id="user-role-select" class="select-input">
+										<option value="admin">admin</option>
+										<option value="question_manager">question_manager</option>
+										<option value="judge_manager">judge_manager</option>
+										<option value="analyst">analyst</option>
+										<option value="user">user</option>
+									</select>
+								</label>
+								<label class="field">
+									<span data-i18n="user.userType">User Type</span>
+									<select id="user-type-select" class="select-input">
+										<option value="normal">normal</option>
+										<option value="expert">expert</option>
+									</select>
+								</label>
+							</div>
+							<div class="form-actions top-gap">
+								<p class="form-status" id="user-role-status">Select a user to edit their role.</p>
+								<button class="login-button" type="submit" data-i18n="user.saveRole">Save Role</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</section>
+
+			<!-- 社区审核模块：展示待审核帖子队列、帖子内容和审核状态更新表单。 -->
+			<section class="content-grid module-grid is-hidden" id="community-moderation-workspace">
+				<div class="panel panel-nav">
+					<div class="panel-header">
+						<div>
+							<h4 data-i18n="moderation.queue">Moderation Queue</h4>
+							<p class="panel-subtitle" id="moderation-status-copy">Load community posts awaiting review.</p>
+						</div>
+						<button class="secondary-button" type="button" id="refresh-moderation-button" data-i18n="moderation.refreshQueue">Refresh Queue</button>
+					</div>
+					<div class="metric-grid" id="moderation-summary-metrics"></div>
+					<div class="moderation-directory" id="moderation-directory"></div>
+				</div>
+
+				<div class="panel panel-main">
+					<div class="panel-header">
+						<div>
+							<h4 data-i18n="moderation.postReview">Post Review</h4>
+							<p class="panel-subtitle" id="moderation-selected-state">Select a post to inspect content and update moderation status.</p>
+						</div>
+					</div>
+					<div class="quest-empty" id="moderation-empty" data-i18n="dynamic.noPostSelected">No post selected.</div>
+					<div class="quest-detail is-hidden" id="moderation-detail">
+						<div class="quest-detail-header">
+							<div>
+								<h3 class="quest-title" id="moderation-detail-title"></h3>
+								<p class="quest-id" id="moderation-detail-meta"></p>
+							</div>
+							<div class="quest-tag-row" id="moderation-detail-tags"></div>
+						</div>
+
+						<div class="detail-grid">
+							<section class="detail-card">
+								<h5 data-i18n="moderation.summary">Summary</h5>
+								<p class="detail-text" id="moderation-detail-summary"></p>
+							</section>
+							<section class="detail-card">
+								<h5 data-i18n="moderation.fullContent">Full Content</h5>
+								<p class="detail-text" id="moderation-detail-content"></p>
+							</section>
+						</div>
+
+						<!-- 审核决策表单：修改帖子 pending/approved/rejected 状态，并保存审核备注。 -->
+					<form class="config-form top-gap" id="moderation-form">
+							<section class="detail-card detail-card-wide">
+								<div class="resource-grid">
+									<label class="field">
+										<span data-i18n="moderation.status">Status</span>
+										<select id="moderation-status-select" class="select-input">
+											<option value="pending">pending</option>
+											<option value="approved">approved</option>
+											<option value="rejected">rejected</option>
+										</select>
+									</label>
+									<label class="field">
+										<span data-i18n="moderation.note">Moderation Note</span>
+										<textarea id="moderation-note-input" rows="4"></textarea>
+									</label>
+								</div>
+							</section>
+							<div class="form-actions">
+								<p class="form-status" id="moderation-form-status">Select a post to review.</p>
+								<button class="login-button" type="submit" data-i18n="moderation.saveDecision">Save Moderation Decision</button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</section>
+
+			<!-- 题库模块：左侧题目目录，右侧题目详情和新增/编辑/删除题目的表单。 -->
+			<section class="content-grid module-grid" id="question-bank-workspace">
+				<div class="panel panel-nav">
+					<div class="panel-header">
+						<div>
+							<h4 data-i18n="quest.directory">Quest Directory</h4>
+							<p class="panel-subtitle" id="quest-total">Sign in to load questions.</p>
+						</div>
+						<button class="secondary-button" type="button" id="new-quest-button" data-i18n="quest.newQuest">New Quest</button>
+					</div>
+					<div class="quest-directory" id="quest-directory"></div>
+				</div>
+
+				<div class="panel panel-main">
+					<div class="panel-header">
+						<div>
+							<h4 data-i18n="quest.details">Quest Details</h4>
+							<p class="panel-subtitle" id="quest-selected-state">Select a quest to inspect its stored backend record.</p>
+						</div>
+						<p class="panel-subtitle" id="quest-editor-mode">Edit mode</p>
+					</div>
+					<div class="quest-empty" id="quest-empty" data-i18n="dynamic.noQuestionSelected">No question selected.</div>
+					<div class="quest-detail is-hidden" id="quest-detail">
+						<div class="quest-detail-header">
+							<div>
+								<h3 class="quest-title" id="detail-title"></h3>
+								<p class="quest-id" id="detail-id"></p>
+							</div>
+							<div class="quest-tag-row" id="detail-tags"></div>
+						</div>
+
+						<div class="detail-grid">
+							<section class="detail-card">
+								<h5 data-i18n="quest.question">Question</h5>
+								<p class="detail-text" id="detail-description"></p>
+							</section>
+							<section class="detail-card">
+								<h5 data-i18n="quest.example">Example</h5>
+								<pre class="code-block" id="detail-example"></pre>
+							</section>
+							<section class="detail-card">
+								<h5 data-i18n="quest.constraints">Constraints</h5>
+								<pre class="code-block" id="detail-constraints"></pre>
+							</section>
+							<section class="detail-card">
+								<h5 data-i18n="quest.labels">Labels</h5>
+								<div class="quest-tag-row" id="detail-labels"></div>
+							</section>
+							<section class="detail-card">
+								<h5 data-i18n="quest.bestApproach">Judge Result: Best Approach</h5>
+								<p class="detail-text" id="detail-best-approach"></p>
+							</section>
+							<section class="detail-card">
+								<h5 data-i18n="quest.reference">Judge Result: Reference</h5>
+								<p class="detail-text detail-reference-title" id="detail-reference-title"></p>
+								<p class="detail-text" id="detail-reference-note"></p>
+							</section>
+							<section class="detail-card detail-card-wide">
+								<h5 data-i18n="quest.judgeCases">Run Logs / Judge Cases</h5>
+								<div class="log-columns">
+									<div>
+										<p class="list-heading" data-i18n="quest.visibleTests">Visible tests</p>
+										<div class="test-list" id="detail-visible-tests"></div>
+									</div>
+									<div>
+										<p class="list-heading" data-i18n="quest.hiddenTests">Hidden tests</p>
+										<div class="test-list" id="detail-hidden-tests"></div>
+									</div>
+								</div>
+							</section>
+							<section class="detail-card detail-card-wide">
+								<h5 data-i18n="quest.referenceSolution">Reference Solution</h5>
+								<div class="solution-columns">
+									<div>
+										<p class="list-heading">Python</p>
+										<pre class="code-block" id="detail-reference-python"></pre>
+									</div>
+									<div>
+										<p class="list-heading">Java</p>
+										<pre class="code-block" id="detail-reference-java"></pre>
+									</div>
+								</div>
+							</section>
+						</div>
+
+						<!-- 题目编辑表单：维护题目元信息、题面、题解、起始代码、参考代码和测试用例 JSON。 -->
+					<form class="config-form top-gap" id="quest-form">
+							<section class="detail-card detail-card-wide">
+								<div class="section-header">
+									<h5 data-i18n="quest.editor">Quest Editor</h5>
+									<p class="section-copy" data-i18n="quest.editorCopy">Create a new quest or update the selected quest. New quests must use a supported judge kind.</p>
+								</div>
+								<div class="resource-grid">
+									<label class="field">
+										<span data-i18n="quest.questId">Quest ID</span>
+										<input type="text" id="quest-form-id" placeholder="two-sum">
+									</label>
+									<label class="field">
+										<span data-i18n="quest.title">Title</span>
+										<input type="text" id="quest-form-title" placeholder="Two Sum">
+									</label>
+									<label class="field">
+										<span data-i18n="quest.difficulty">Difficulty</span>
+										<input type="text" id="quest-form-difficulty" placeholder="Easy">
+									</label>
+									<label class="field">
+										<span data-i18n="quest.difficultyClass">Difficulty Class</span>
+										<input type="text" id="quest-form-difficulty-class" placeholder="easy">
+									</label>
+									<label class="field">
+										<span data-i18n="quest.category">Category</span>
+										<input type="text" id="quest-form-category" placeholder="Array">
+									</label>
+									<label class="field">
+										<span data-i18n="quest.acceptance">Acceptance</span>
+										<input type="text" id="quest-form-acceptance" placeholder="Acceptance 49.2%">
+									</label>
+									<label class="field">
+										<span data-i18n="quest.judgeKind">Judge Kind</span>
+										<input type="text" id="quest-form-kind" placeholder="two_sum">
+									</label>
+									<label class="field">
+										<span data-i18n="quest.referenceTitle">Reference Title</span>
+										<input type="text" id="quest-form-reference-title" placeholder="Local Editorial Reference">
+									</label>
+								</div>
+								<div class="command-grid top-gap">
+									<label class="field">
+										<span data-i18n="quest.description">Description</span>
+										<textarea id="quest-form-description" rows="5"></textarea>
+									</label>
+									<label class="field">
+										<span data-i18n="quest.example">Example</span>
+										<textarea id="quest-form-example" rows="5"></textarea>
+									</label>
+									<label class="field">
+										<span data-i18n="quest.constraints">Constraints</span>
+										<textarea id="quest-form-constraints" rows="5"></textarea>
+									</label>
+									<label class="field">
+										<span data-i18n="quest.bestApproachPlain">Best Approach</span>
+										<textarea id="quest-form-best-approach" rows="5"></textarea>
+									</label>
+									<label class="field">
+										<span data-i18n="quest.referenceNote">Reference Note</span>
+										<textarea id="quest-form-reference-note" rows="5"></textarea>
+									</label>
+								</div>
+							</section>
+
+							<section class="detail-card detail-card-wide">
+								<div class="section-header">
+									<h5 data-i18n="quest.starterCodes">Starter Codes</h5>
+									<p class="section-copy" data-i18n="quest.starterCodesCopy">These are shown to learners before they write a solution.</p>
+								</div>
+								<div class="solution-columns">
+									<label class="field">
+										<span data-i18n="quest.pythonStarter">Python Starter Code</span>
+										<textarea id="quest-form-starter-python" rows="10"></textarea>
+									</label>
+									<label class="field">
+										<span data-i18n="quest.javaStarter">Java Starter Code</span>
+										<textarea id="quest-form-starter-java" rows="10"></textarea>
+									</label>
+								</div>
+							</section>
+
+							<section class="detail-card detail-card-wide">
+								<div class="section-header">
+									<h5 data-i18n="quest.referenceSolutions">Reference Solutions</h5>
+									<p class="section-copy" data-i18n="quest.referenceSolutionsCopy">These are unlocked in the learner quest page after submit.</p>
+								</div>
+								<div class="solution-columns">
+									<label class="field">
+										<span data-i18n="quest.pythonReference">Python Reference Solution</span>
+										<textarea id="quest-form-reference-python" rows="10"></textarea>
+									</label>
+									<label class="field">
+										<span data-i18n="quest.javaReference">Java Reference Solution</span>
+										<textarea id="quest-form-reference-java" rows="10"></textarea>
+									</label>
+								</div>
+							</section>
+
+							<section class="detail-card detail-card-wide">
+								<div class="section-header">
+									<h5 data-i18n="quest.judgeTests">Judge Tests</h5>
+									<p class="section-copy" data-i18n="quest.judgeTestsCopy">Provide JSON arrays with objects shaped like { "name": "...", "input": ..., "expected": ... }.</p>
+								</div>
+								<div class="solution-columns">
+									<label class="field">
+										<span data-i18n="quest.visibleTestsJson">Visible Tests JSON</span>
+										<textarea id="quest-form-visible-tests" rows="12"></textarea>
+									</label>
+									<label class="field">
+										<span data-i18n="quest.hiddenTestsJson">Hidden Tests JSON</span>
+										<textarea id="quest-form-hidden-tests" rows="12"></textarea>
+									</label>
+								</div>
+							</section>
+
+							<div class="form-actions">
+								<p class="form-status" id="quest-form-status">Select a quest or create a new one.</p>
+								<div class="button-row">
+									<button class="danger-button" type="button" id="quest-delete-button" data-i18n="quest.deleteQuest">Delete Quest</button>
+									<button class="login-button" type="submit" id="quest-save-button" data-i18n="quest.saveQuest">Save Quest</button>
+								</div>
+							</div>
+						</form>
+					</div>
+				</div>
+			</section>
+
+			<!-- 评测系统模块：展示实时评测队列，并维护 Python/Java 运行配置和资源限制。 -->
+			<section class="content-grid module-grid is-hidden" id="judge-system-workspace">
+				<div class="panel panel-nav">
+					<div class="panel-header">
+						<h4 data-i18n="judge.queueMonitoring">Queue Monitoring</h4>
+						<p class="panel-subtitle" id="queue-status-copy">Load judge queue metrics from backend.</p>
+					</div>
+					<div class="metric-grid" id="queue-metrics"></div>
+					<div class="panel-section">
+						<div class="section-header">
+							<h5 data-i18n="judge.recentJobs">Recent Jobs</h5>
+							<button class="secondary-button" type="button" id="refresh-queue-button" data-i18n="judge.refreshQueue">Refresh Queue</button>
+						</div>
+						<div class="queue-jobs" id="queue-jobs"></div>
+					</div>
+				</div>
+
+				<div class="panel panel-main">
+					<div class="panel-header">
+						<h4 data-i18n="judge.config">Evaluation Configuration</h4>
+						<p class="panel-subtitle" id="judge-config-updated">No judge configuration loaded.</p>
+					</div>
+
+					<!-- 评测配置表单：编辑语言镜像、编译/运行命令、超时、内存、并发和队列阈值。 -->
+					<form class="config-form" id="judge-config-form">
+						<section class="detail-card detail-card-wide">
+							<div class="section-header">
+								<h5 data-i18n="judge.languageConfig">Language Configuration</h5>
+								<p class="section-copy" data-i18n="judge.languageConfigCopy">Enable languages and control how the judge resolves source files and entry points.</p>
+							</div>
+							<div class="language-config-grid">
+								<article class="language-card">
+									<div class="language-card-head">
+										<h6>Python</h6>
+										<label class="toggle-row">
+											<input type="checkbox" id="lang-python-enabled">
+											<span data-i18n="judge.enabled">Enabled</span>
+										</label>
+									</div>
+									<label class="field">
+										<span data-i18n="judge.label">Label</span>
+										<input type="text" id="lang-python-label" placeholder="Python">
+									</label>
+									<label class="field">
+										<span data-i18n="judge.dockerImage">Docker Image</span>
+										<input type="text" id="lang-python-image" placeholder="python:3.12-alpine">
+									</label>
+									<label class="field">
+										<span data-i18n="judge.sourceFile">Source File</span>
+										<input type="text" id="lang-python-source" placeholder="main.py">
+									</label>
+									<label class="field">
+										<span data-i18n="judge.entryPoint">Entry Point</span>
+										<input type="text" id="lang-python-entry" placeholder="main.py">
+									</label>
+									<label class="field">
+										<span data-i18n="judge.notes">Notes</span>
+										<textarea id="lang-python-notes" rows="3"></textarea>
+									</label>
+								</article>
+
+								<article class="language-card">
+									<div class="language-card-head">
+										<h6>Java</h6>
+										<label class="toggle-row">
+											<input type="checkbox" id="lang-java-enabled">
+											<span data-i18n="judge.enabled">Enabled</span>
+										</label>
+									</div>
+									<label class="field">
+										<span data-i18n="judge.label">Label</span>
+										<input type="text" id="lang-java-label" placeholder="Java">
+									</label>
+									<label class="field">
+										<span data-i18n="judge.dockerImage">Docker Image</span>
+										<input type="text" id="lang-java-image" placeholder="eclipse-temurin:21-jdk-alpine">
+									</label>
+									<label class="field">
+										<span data-i18n="judge.sourceFile">Source File</span>
+										<input type="text" id="lang-java-source" placeholder="Main.java">
+									</label>
+									<label class="field">
+										<span data-i18n="judge.entryPoint">Entry Point</span>
+										<input type="text" id="lang-java-entry" placeholder="Main">
+									</label>
+									<label class="field">
+										<span data-i18n="judge.notes">Notes</span>
+										<textarea id="lang-java-notes" rows="3"></textarea>
+									</label>
+								</article>
+							</div>
+						</section>
+
+						<section class="detail-card detail-card-wide">
+							<div class="section-header">
+								<h5 data-i18n="judge.containerCommands">Container Commands</h5>
+								<p class="section-copy" data-i18n="judge.containerCommandsCopy">These commands run inside the language container. Use one argument per line. Available placeholders: {source}, {entry}.</p>
+							</div>
+							<div class="command-grid">
+								<label class="field">
+									<span data-i18n="judge.pythonCompile">Python Compile Command</span>
+									<textarea id="lang-python-compile" rows="5"></textarea>
+								</label>
+								<label class="field">
+									<span data-i18n="judge.pythonRun">Python Run Command</span>
+									<textarea id="lang-python-run" rows="5"></textarea>
+								</label>
+								<label class="field">
+									<span data-i18n="judge.javaCompile">Java Compile Command</span>
+									<textarea id="lang-java-compile" rows="5"></textarea>
+								</label>
+								<label class="field">
+									<span data-i18n="judge.javaRun">Java Run Command</span>
+									<textarea id="lang-java-run" rows="5"></textarea>
+								</label>
+							</div>
+						</section>
+
+						<section class="detail-card detail-card-wide">
+							<div class="section-header">
+								<h5 data-i18n="judge.resourceLimits">Resource Limits</h5>
+								<p class="section-copy" data-i18n="judge.resourceLimitsCopy">Control compile/runtime limits, Docker memory, output buffering, and queue concurrency.</p>
+							</div>
+							<div class="resource-grid">
+								<label class="field">
+									<span data-i18n="judge.compileTimeout">Compile Timeout (ms)</span>
+									<input type="number" id="limit-compile-timeout" min="100" step="100">
+								</label>
+								<label class="field">
+									<span data-i18n="judge.runTimeout">Run Timeout (ms)</span>
+									<input type="number" id="limit-run-timeout" min="100" step="100">
+								</label>
+								<label class="field">
+									<span data-i18n="judge.maxBuffer">Max Output Buffer (KB)</span>
+									<input type="number" id="limit-max-buffer" min="128" step="128">
+								</label>
+								<label class="field">
+									<span data-i18n="judge.memoryLimit">Memory Limit (KB)</span>
+									<input type="number" id="limit-memory" min="1" step="128" placeholder="Optional">
+								</label>
+								<label class="field">
+									<span data-i18n="judge.maxConcurrent">Max Concurrent Jobs</span>
+									<input type="number" id="limit-max-concurrent" min="1" step="1">
+								</label>
+								<label class="field">
+									<span data-i18n="judge.historySize">Queue History Size</span>
+									<input type="number" id="limit-history-size" min="1" step="1">
+								</label>
+								<label class="field">
+									<span data-i18n="judge.queueAlert">Queue Alert Threshold</span>
+									<input type="number" id="limit-queue-alert" min="1" step="1">
+								</label>
+							</div>
+						</section>
+
+						<div class="form-actions">
+							<p class="form-status" id="judge-config-status">Load the current backend configuration before editing.</p>
+							<button class="login-button" type="submit" data-i18n="judge.saveConfig">Save Judge Configuration</button>
+						</div>
+					</form>
+				</div>
+			</section>
+
+			<!-- 学习数据统计模块：选择时间窗口后展示 DAU、提交量、通过率和错题分布图表。 -->
+			<section class="content-grid module-grid is-hidden" id="analytics-workspace">
+				<div class="panel panel-nav">
+					<div class="panel-header">
+						<div>
+							<h4 data-i18n="analytics.controls">Analytics Controls</h4>
+							<p class="panel-subtitle" id="analytics-status-copy">Load backend learning analytics data.</p>
+						</div>
+					</div>
+					<div class="panel-section">
+						<label class="field">
+							<span data-i18n="analytics.timeWindow">Time Window (days)</span>
+							<select id="analytics-days-select" class="select-input">
+								<option value="7">7</option>
+								<option value="14" selected>14</option>
+								<option value="30">30</option>
+							</select>
+						</label>
+						<div class="button-row top-gap">
+							<button class="secondary-button" type="button" id="refresh-analytics-button" data-i18n="analytics.refresh">Refresh Analytics</button>
+						</div>
+					</div>
+					<div class="panel-section">
+						<div class="metric-grid" id="analytics-summary-metrics"></div>
+					</div>
+				</div>
+
+				<div class="panel panel-main">
+					<div class="panel-header">
+						<div>
+							<h4 data-i18n="analytics.stats">User Learning Data Statistics</h4>
+							<p class="panel-subtitle" data-i18n="analytics.statsCopy">ECharts charts for daily activity, quest outcomes, and wrong-answer distribution across learning modules.</p>
+						</div>
+					</div>
+					<div class="analytics-grid">
+						<section class="detail-card">
+							<h5>DAU</h5>
+							<div class="chart-surface" id="chart-dau"></div>
+						</section>
+						<section class="detail-card">
+							<h5 data-i18n="analytics.submissionVolume">Quest Submission Volume</h5>
+							<div class="chart-surface" id="chart-submission-volume"></div>
+						</section>
+						<section class="detail-card">
+							<h5 data-i18n="analytics.passRate">Quest Pass Rate</h5>
+							<div class="chart-surface" id="chart-pass-rate"></div>
+						</section>
+						<section class="detail-card">
+							<h5 data-i18n="analytics.wrongDistribution">Distribution of Incorrect Answers</h5>
+							<div class="chart-surface" id="chart-wrong-answer-distribution"></div>
+						</section>
+					</div>
+				</div>
+			</section>
+		</main>
+	</div>
+
+	<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+	<script src="./script.js"></script>
+</body>
+</html>

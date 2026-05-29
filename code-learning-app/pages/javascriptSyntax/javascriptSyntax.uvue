@@ -1,0 +1,76 @@
+<!-- 功能：JavaScript 语法学习页，展示变量、类型、运算符和控制流知识。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="section-card knowledge">
+			<text class="section-tag">{{ copy.sectionTag }}</text>
+			<text class="section-title">{{ copy.sectionTitle }}</text>
+			<text class="section-copy">{{ copy.copyOne }}</text>
+			<text class="section-copy">{{ copy.copyTwo }}</text>
+			<text class="section-copy">{{ copy.copyThree }}</text>
+		</view>
+
+		<button class="practice-button" @tap="openPractice">{{ copy.practiceButton }}</button>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			eyebrow: 'JavaScript Module 1',
+			title: 'Syntax and Data Types',
+			subtitle: 'Start with the language building blocks before moving to more complex program flow.',
+			sectionTag: 'Knowledge Guide',
+			sectionTitle: 'Core ideas',
+			copyOne: 'JavaScript stores values in variables using `let` and `const`. Common data types include string, number, boolean, null, undefined, object, and array.',
+			copyTwo: 'Arrays keep ordered values, while objects group data by key. Understanding these two structures is essential because most real application state is built from them.',
+			copyThree: 'A good first habit is to inspect values with `console.log` and check types using `typeof` so you can reason about data shape early.',
+			practiceButton: 'Go To Practice',
+		},
+		zh: {
+			eyebrow: 'JavaScript 模块 1',
+			title: '语法与数据类型',
+			subtitle: '先掌握语言基础，再进入更复杂的程序流程。',
+			sectionTag: '知识讲解',
+			sectionTitle: '核心概念',
+			copyOne: 'JavaScript 使用 `let` 和 `const` 在变量中保存值。常见数据类型包括 string、number、boolean、null、undefined、object 和 array。',
+			copyTwo: '数组按索引有序保存值，对象按键组织数据。理解这两种结构很重要，因为大多数真实应用状态都建立在它们之上。',
+			copyThree: '一个很好的起步习惯是用 `console.log` 查看值，并用 `typeof` 检查类型，这样你能更早判断数据结构。',
+			practiceButton: '前往练习',
+		},
+	}
+
+	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+
+	const openPractice = () => {
+		uni.navigateTo({
+			url: '/pages/javascriptSyntaxPractice/javascriptSyntaxPractice',
+		})
+	}
+
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+</script>
+
+<style>
+	.page { min-height: 100vh; padding: 20px 18px 28px; background-color: #fff8ef; }
+	.hero { padding: 12px 2px 18px; }
+	.eyebrow { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #0f5d74; }
+	.title { margin-top: 10px; font-size: 30px; line-height: 36px; font-weight: 700; color: #1f2937; }
+	.subtitle { margin-top: 10px; font-size: 14px; line-height: 21px; color: #6b7280; }
+	.section-card { padding: 20px 16px; margin-bottom: 14px; border-radius: 20px; background-color: #ffffff; box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08); }
+	.knowledge { background-image: linear-gradient(180deg, #0d7695 0%, #5c8fb4 100%); }
+	.section-tag { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: rgba(255, 255, 255, 0.88); }
+	.section-title { margin-top: 8px; font-size: 20px; font-weight: 700; color: #ffffff; }
+	.section-copy { margin-top: 10px; font-size: 14px; line-height: 21px; color: rgba(255, 255, 255, 0.92); }
+	.practice-button { height: 42px; border-radius: 14px; border-width: 0; background-color: #16394b; color: #ffffff; font-size: 15px; font-weight: 600; }
+</style>

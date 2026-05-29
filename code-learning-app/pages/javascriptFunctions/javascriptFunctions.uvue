@@ -1,0 +1,74 @@
+<!-- 功能：JavaScript 函数学习页，讲解函数声明、参数、作用域和闭包基础。 -->
+<template>
+	<scroll-view class="page" scroll-y="true">
+		<view class="hero">
+			<text class="eyebrow">{{ copy.eyebrow }}</text>
+			<text class="title">{{ copy.title }}</text>
+			<text class="subtitle">{{ copy.subtitle }}</text>
+		</view>
+
+		<view class="section-card knowledge">
+			<text class="section-tag">{{ copy.sectionTag }}</text>
+			<text class="section-title">{{ copy.sectionTitle }}</text>
+			<text class="section-copy">{{ copy.copyOne }}</text>
+			<text class="section-copy">{{ copy.copyTwo }}</text>
+			<text class="section-copy">{{ copy.copyThree }}</text>
+		</view>
+
+		<button class="practice-button" @tap="openPractice">{{ copy.practiceButton }}</button>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+	import { getCurrentLanguage } from '../../utils/i18n.uts'
+
+	const currentLanguage = ref(getCurrentLanguage() as string)
+	const copyMap = {
+		en: {
+			eyebrow: 'JavaScript Module 2',
+			title: 'Functions and Control Flow',
+			subtitle: 'Learn how to make decisions, repeat actions, and package logic into reusable units.',
+			sectionTag: 'Knowledge Guide',
+			sectionTitle: 'Core ideas',
+			copyOne: 'Functions let you reuse logic instead of rewriting the same steps. Parameters pass input into a function and `return` sends a result back.',
+			copyTwo: 'Control flow decides what code runs using `if`, `else`, `switch`, `for`, and `while`. These tools make programs react to user input and data conditions.',
+			copyThree: 'When functions stay small and focused, code becomes easier to test and debug.',
+			practiceButton: 'Go To Practice',
+		},
+		zh: {
+			eyebrow: 'JavaScript 模块 2',
+			title: '函数与流程控制',
+			subtitle: '学习如何做判断、重复执行操作，并把逻辑封装成可复用单元。',
+			sectionTag: '知识讲解',
+			sectionTitle: '核心概念',
+			copyOne: '函数让你复用逻辑，而不是反复重写相同步骤。参数把输入传入函数，`return` 把结果返回出来。',
+			copyTwo: '流程控制通过 `if`、`else`、`switch`、`for` 和 `while` 决定执行哪些代码。这些工具让程序能够根据用户输入和数据条件做出反应。',
+			copyThree: '当函数保持小而专注时，代码会更容易测试和调试。',
+			practiceButton: '前往练习',
+		},
+	}
+
+	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+	const openPractice = () => {
+		uni.navigateTo({
+			url: '/pages/javascriptFunctionsPractice/javascriptFunctionsPractice',
+		})
+	}
+	onShow(() => {
+		currentLanguage.value = getCurrentLanguage()
+	})
+</script>
+
+<style>
+	.page { min-height: 100vh; padding: 20px 18px 28px; background-color: #fff8ef; }
+	.hero { padding: 12px 2px 18px; }
+	.eyebrow { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: #0f5d74; }
+	.title { margin-top: 10px; font-size: 30px; line-height: 36px; font-weight: 700; color: #1f2937; }
+	.subtitle { margin-top: 10px; font-size: 14px; line-height: 21px; color: #6b7280; }
+	.section-card { padding: 20px 16px; margin-bottom: 14px; border-radius: 20px; background-color: #ffffff; box-shadow: 0 12px 30px rgba(46, 61, 87, 0.08); }
+	.knowledge { background-image: linear-gradient(180deg, #0d7695 0%, #5c8fb4 100%); }
+	.section-tag { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: rgba(255, 255, 255, 0.88); }
+	.section-title { margin-top: 8px; font-size: 20px; font-weight: 700; color: #ffffff; }
+	.section-copy { margin-top: 10px; font-size: 14px; line-height: 21px; color: rgba(255, 255, 255, 0.92); }
+	.practice-button { height: 42px; border-radius: 14px; border-width: 0; background-color: #16394b; color: #ffffff; font-size: 15px; font-weight: 600; }
+</style>

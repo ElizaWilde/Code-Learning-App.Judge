@@ -1,0 +1,31 @@
+<!-- 功能：应用根组件，承载全局生命周期钩子和基础页面容器样式。 -->
+<script lang="uts">
+	export default {
+		onLaunch() {
+			console.log('App Launch')
+		},
+
+		onShow() {
+			console.log('App Show')
+		},
+
+		onHide() {
+			console.log('App Hide')
+		},
+
+		onError(error : any) {
+			console.error('App Error', error)
+		},
+	}
+</script>
+
+<style>
+	/* Global shared layout helpers */
+	.uni-row {
+		flex-direction: row;
+	}
+
+	.uni-column {
+		flex-direction: column;
+	}
+</style>
