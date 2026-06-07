@@ -1,4 +1,4 @@
-// 功能：检测 Java 相关内容中的单引号引用格式，辅助定位数据清洗问题。
+// 功能：检测 Java 参考代码中的单引号格式问题，辅助题库文本清洗
 const fs=require('fs');
 const p='f:/unishit/code-learning-app/pages/quest/quest.uvue';
 const s=fs.readFileSync(p,'utf8');

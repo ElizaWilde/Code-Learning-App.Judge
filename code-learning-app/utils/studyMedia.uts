@@ -1,0 +1,138 @@
+// 功能：集中维护学习模块配图、视频地址和网页视频播放器转换规则
+export const ACTIVE_VIDEO_URL_KEY = 'activeVideoUrl'
+
+export type StudyModuleMedia = {
+	imageUrl : string
+	videoUrl : string
+}
+
+const DEFAULT_VIDEO_URL = 'https://www.w3schools.com/html/mov_bbb.mp4'
+const JAVASCRIPT_ASYNC_VIDEO_URL = 'https://www.bilibili.com/video/BV1WP4y187Tu/?spm_id_from=333.337.search-card.all.click&vd_source=3f3d9ab8a2c698f7fb9971436d10e50d'
+
+function createImageUrl(background : string, textColor : string, text : string) : string {
+	return 'https://dummyimage.com/1200x720/' + background + '/' + textColor + '&text=' + text
+}
+
+export function getStudyModuleMedia(moduleId : string) : StudyModuleMedia {
+	switch (moduleId) {
+		case 'javascript-functions':
+			return {
+				imageUrl: createImageUrl('156784', 'ffffff', 'Functions+and+Control+Flow'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'javascript-async':
+			return {
+				imageUrl: 'https://miro.medium.com/v2/format:webp/1*V5syja2casc0gCuu9zKV5g.png',
+				videoUrl: JAVASCRIPT_ASYNC_VIDEO_URL,
+			}
+		case 'javascript-dom':
+			return {
+				imageUrl: 'https://media.geeksforgeeks.org/wp-content/uploads/20241120143259875787/DOM-Tree1.webp',
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'java-syntax':
+			return {
+				imageUrl: 'https://www.runoob.com/js/js-datatypes.html',
+				videoUrl: 'https://www.bilibili.com/video/BV1o94y1A7xd/?spm_id_from=333.337.search-card.all.click&vd_source=3f3d9ab8a2c698f7fb9971436d10e50d',
+			}
+		case 'java-oop':
+			return {
+				imageUrl: createImageUrl('eb8e65', '42230c', 'Java+OOP'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'java-collections':
+			return {
+				imageUrl: createImageUrl('d97706', 'ffffff', 'Collections+and+Exceptions'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'java-backend':
+			return {
+				imageUrl: createImageUrl('b45309', 'ffffff', 'Java+Backend+Apps'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'postgres-fundamentals':
+			return {
+				imageUrl: createImageUrl('1d4ed8', 'ffffff', 'PostgreSQL+Fundamentals'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'postgres-relations':
+			return {
+				imageUrl: createImageUrl('2563eb', 'ffffff', 'Relations+and+Indexes'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'redis-basics':
+			return {
+				imageUrl: createImageUrl('dc2626', 'ffffff', 'Redis+Basics'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'postgres-redis':
+			return {
+				imageUrl: createImageUrl('0f766e', 'ffffff', 'PostgreSQL+Plus+Redis'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'ai-basics':
+			return {
+				imageUrl: createImageUrl('6a5cff', 'ffffff', 'AI+and+ML+Basics'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'llm-workings':
+			return {
+				imageUrl: createImageUrl('7c3aed', 'ffffff', 'How+LLMs+Work'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'prompting-eval':
+			return {
+				imageUrl: createImageUrl('8b5cf6', 'ffffff', 'Prompting+and+Evaluation'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'ai-safety':
+			return {
+				imageUrl: createImageUrl('a78bfa', 'ffffff', 'AI+Safety+and+Workflows'),
+				videoUrl: DEFAULT_VIDEO_URL,
+			}
+		case 'javascript-syntax':
+		default:
+			return {
+				imageUrl: 'https://www.runoob.com/wp-content/uploads/2013/08/Javascript-DataType.png',
+				videoUrl: 'https://www.bilibili.com/video/BV1o94y1A7xd/?spm_id_from=333.337.search-card.all.click&vd_source=3f3d9ab8a2c698f7fb9971436d10e50d',
+			}
+	}
+}
+
+export function isWebVideoUrl(url : string) : boolean {
+	return url.indexOf('bilibili.com') >= 0 || url.indexOf('player.bilibili.com') >= 0
+}
+
+function extractBilibiliBvid(url : string) : string {
+	const markerIndex = url.indexOf('BV')
+	if (markerIndex < 0) {
+		return ''
+	}
+
+	const allowedChars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+	let bvid = 'BV'
+	let index = markerIndex + 2
+	while (index < url.length) {
+		const char = url.charAt(index)
+		if (allowedChars.indexOf(char) < 0) {
+			break
+		}
+		bvid += char
+		index += 1
+	}
+
+	return bvid.length > 2 ? bvid : ''
+}
+
+export function toWebVideoPlayerUrl(url : string) : string {
+	if (url.indexOf('player.bilibili.com') >= 0) {
+		return url
+	}
+
+	const bvid = extractBilibiliBvid(url)
+	if (bvid.length > 0) {
+		return 'https://player.bilibili.com/player.html?bvid=' + bvid + '&page=1&autoplay=0&danmaku=0'
+	}
+
+	return url
+}

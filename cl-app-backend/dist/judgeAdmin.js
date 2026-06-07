@@ -10,10 +10,13 @@ exports.getResourceLimits = getResourceLimits;
 exports.buildCommand = buildCommand;
 exports.getJudgeQueueSnapshot = getJudgeQueueSnapshot;
 exports.enqueueJudgeJob = enqueueJudgeJob;
+// 功能：管理判题系统配置和判题队列，包括语言 Docker 配置、资源限制、并发控制和队列快照
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const db_1 = require("./db");
+// 判题配置和数据库放在同一数据目录，便于部署时迁移
 const judgeConfigPath = node_path_1.default.join(node_path_1.default.dirname((0, db_1.getDatabasePath)()), "judge-config.json");
+// 默认判题配置，定义 Python/Java 的 Docker 镜像、编译命令、运行命令和资源限制
 function defaultJudgeSystemConfig() {
     return {
         languages: {
@@ -50,9 +53,11 @@ function defaultJudgeSystemConfig() {
         updatedAt: new Date().toISOString()
     };
 }
+// 返回配置副本，避免调用方直接修改内存中的全局配置
 function cloneConfig(config) {
     return JSON.parse(JSON.stringify(config));
 }
+// 清洗后台传入的命令数组，去掉非字符串和空字符串
 function sanitizeCommand(value) {
     if (!Array.isArray(value)) {
         return [];
@@ -61,6 +66,7 @@ function sanitizeCommand(value) {
         .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
         .filter((entry) => entry.length > 0);
 }
+// 清洗正数配置项，非法值回退到默认值
 function sanitizePositiveNumber(value, fallback, min = 1) {
     const parsed = typeof value === "number" ? value : Number(value);
     if (!Number.isFinite(parsed)) {
@@ -68,6 +74,7 @@ function sanitizePositiveNumber(value, fallback, min = 1) {
     }
     return Math.max(min, Math.round(parsed));
 }
+// 内存限制允许为空，表示不额外设置 Docker memory 参数
 function sanitizeNullableNumber(value) {
     if (value === null || value === "" || value === undefined) {
         return null;
@@ -78,6 +85,7 @@ function sanitizeNullableNumber(value) {
     }
     return Math.max(1, Math.round(parsed));
 }
+// 字符串配置为空或非法时回退到默认值
 function sanitizeString(value, fallback) {
     if (typeof value !== "string") {
         return fallback;
@@ -85,6 +93,7 @@ function sanitizeString(value, fallback) {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : fallback;
 }
+// 后台保存配置前统一清洗，避免无效配置破坏判题流程
 function sanitizeConfig(candidate) {
     const defaults = defaultJudgeSystemConfig();
     const source = candidate && typeof candidate === "object" ? candidate : {};
@@ -135,6 +144,7 @@ function sanitizeConfig(candidate) {
             : defaults.updatedAt
     };
 }
+// 启动时读取 judge-config.json，读取失败则使用默认配置
 function loadConfigFromDisk() {
     try {
         if (!node_fs_1.default.existsSync(judgeConfigPath)) {
@@ -147,11 +157,14 @@ function loadConfigFromDisk() {
         return defaultJudgeSystemConfig();
     }
 }
+// 保存后台维护后的判题配置
 function persistConfig(config) {
     node_fs_1.default.mkdirSync(node_path_1.default.dirname(judgeConfigPath), { recursive: true });
     node_fs_1.default.writeFileSync(judgeConfigPath, JSON.stringify(config, null, 2), "utf8");
 }
+// 当前内存中的判题系统配置
 let judgeSystemConfig = loadConfigFromDisk();
+// 以下状态用于内存队列统计，服务重启后会重新计数
 let activeJobs = 0;
 let completedCount = 0;
 let failedCount = 0;
@@ -159,12 +172,14 @@ let totalSubmitted = 0;
 let nextJobId = 1;
 const queueWaiters = [];
 const recentJobs = [];
+// 控制最近任务历史长度，避免内存列表无限增长
 function trimRecentJobs() {
     const maxItems = judgeSystemConfig.resourceLimits.historySize;
     while (recentJobs.length > maxItems) {
         recentJobs.pop();
     }
 }
+// 新任务入队或状态变化时更新最近任务列表
 function addOrUpdateRecentJob(job) {
     const index = recentJobs.findIndex((entry) => entry.id === job.id);
     if (index >= 0) {
@@ -175,6 +190,7 @@ function addOrUpdateRecentJob(job) {
     }
     trimRecentJobs();
 }
+// 有空闲并发名额时唤醒排队中的判题任务
 function scheduleQueuedJobs() {
     while (queueWaiters.length > 0 && activeJobs < judgeSystemConfig.resourceLimits.maxConcurrentJobs) {
         const waiter = queueWaiters.shift();
@@ -183,9 +199,11 @@ function scheduleQueuedJobs() {
         }
     }
 }
+// 后台读取当前判题配置
 function getJudgeSystemConfig() {
     return cloneConfig(judgeSystemConfig);
 }
+// 后台更新判题配置，保存后立即影响后续判题任务
 function updateJudgeSystemConfig(candidate) {
     const source = candidate && typeof candidate === "object" ? candidate : {};
     judgeSystemConfig = sanitizeConfig({
@@ -197,18 +215,22 @@ function updateJudgeSystemConfig(candidate) {
     scheduleQueuedJobs();
     return getJudgeSystemConfig();
 }
+// 判题服务按语言读取 Docker 镜像和命令配置
 function getLanguageAdminConfig(language) {
     return cloneConfig(judgeSystemConfig).languages[language];
 }
+// 判题服务读取超时、内存、输出和并发限制
 function getResourceLimits() {
     return cloneConfig(judgeSystemConfig).resourceLimits;
 }
+// 把命令模板中的 {source} 和 {entry} 替换为当前语言配置
 function buildCommand(template, language) {
     const config = getLanguageAdminConfig(language);
     return template.map((segment) => segment
         .replaceAll("{source}", config.sourceFileName)
         .replaceAll("{entry}", config.entryPoint));
 }
+// 后台读取判题队列统计和最近任务历史
 function getJudgeQueueSnapshot() {
     return {
         activeCount: activeJobs,
@@ -221,6 +243,7 @@ function getJudgeQueueSnapshot() {
         recentJobs: recentJobs.map((job) => ({ ...job }))
     };
 }
+// 判题任务统一进入队列，按照 maxConcurrentJobs 控制并发执行
 async function enqueueJudgeJob(questId, language, mode, runJob) {
     const job = {
         id: `job-${nextJobId++}`,

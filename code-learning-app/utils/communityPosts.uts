@@ -1,4 +1,4 @@
-// 功能：封装社区帖子数据的本地存储、创建、查询和互动更新逻辑。
+// 功能：管理社区帖子和评论的本地数据，提供发帖、详情、评论和用户身份标识能力
 const COMMUNITY_COMMENTS_KEY_PREFIX = 'communityComments::'
 const ACTIVE_COMMUNITY_POST_KEY = 'activeCommunityPostId'
 const LOGIN_USER_KEY = 'loggedInUser'
@@ -27,6 +27,7 @@ export type CommunityComment = {
 	meta : string
 }
 
+// 从本地登录信息读取当前用户类型
 export function getCurrentUserType() : UserType {
 	const storedType = uni.getStorageSync(LOGIN_USER_TYPE_KEY) as string
 	if (storedType == 'expert') {
@@ -44,6 +45,7 @@ export function getUserBadgeLabel(userType : UserType) : string {
 	return ''
 }
 
+// 社区发帖和评论默认使用当前登录用户名
 export function getCurrentUsername() : string {
 	const username = uni.getStorageSync(LOGIN_USER_KEY) as string
 	if (username.length > 0) {
@@ -67,6 +69,7 @@ function readComments(postId : string) : CommunityComment[] {
 }
 
 
+// 打开帖子详情前保存当前帖子 ID
 export function setActiveCommunityPostId(postId : string) {
 	uni.setStorageSync(ACTIVE_COMMUNITY_POST_KEY, postId)
 }
@@ -79,6 +82,7 @@ export function getCommentsForPost(postId : string) : CommunityComment[] {
 	return readComments(postId)
 }
 
+// 把评论保存到当前帖子对应的本地评论列表
 export function addCommentToPost(postId : string, content : string) {
 	const trimmedContent = content.trim()
 	if (trimmedContent.length == 0) {

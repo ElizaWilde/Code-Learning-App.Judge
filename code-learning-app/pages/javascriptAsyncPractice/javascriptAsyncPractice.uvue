@@ -1,4 +1,4 @@
-<!-- 功能：JavaScript 异步编程练习页，提供异步知识答题与解析反馈。 -->
+<!-- 功能：JavaScript 异步练习页，完成 Promise 和 async/await 选择题、保存得分并同步错题本 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">
@@ -24,6 +24,7 @@
 <script setup lang="uts">
 	import { saveWrongQuestionsForModule } from '../../utils/wrongQuestions.uts'
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
+	import { openStudyModule } from '../../utils/studyModule.uts'
 
 	const SCORE_KEY = 'javascriptAsyncPracticeScore'
 	const currentLanguage = ref(getCurrentLanguage() as string)
@@ -44,10 +45,26 @@
 			{ id: 'js-async-q3', prompt: '3. Why is `try/catch` useful with async code?', options: [{ key: 'A', label: 'A. To handle possible errors' }, { key: 'B', label: 'B. To sort arrays' }, { key: 'C', label: 'C. To declare imports' }], correctKey: 'A', correctAnswer: 'A. To handle possible errors' },
 		])
 	const answers = ref(['', '', ''] as string[])
+	const wrongQuestionIds = ref([] as string[])
+	const wrongAnswers = ref(['', '', ''] as string[])
 	const resultMessage = ref('')
 	const hasSubmitted = ref(false)
 	const showNextButton = ref(false)
-	const setAnswer = (index: number, answer: string) => { answers.value[index] = answer }
+	// 用户点击选项时记录当前题目的答案
+	const setAnswer = (index: number, answer: string) => {
+		answers.value[index] = answer
+		const question = questions.value[index]
+		if (answer != question.correctKey) {
+			const selected = question.options.find(option => option.key == answer)
+			if (wrongQuestionIds.value.indexOf(question.id) < 0) {
+				wrongQuestionIds.value.push(question.id)
+			}
+			if (selected != null && wrongAnswers.value[index].length == 0) {
+				wrongAnswers.value[index] = selected.label
+			}
+		}
+	}
+	// 提交测验后计算得分，保存最高分，并把错题写入错题本
 	const submitQuiz = () => {
 		if (answers.value.some(answer => answer.length == 0)) { hasSubmitted.value = false; resultMessage.value = copy.value.answerAll; showNextButton.value = false; return }
 		hasSubmitted.value = true
@@ -59,13 +76,14 @@
 			selectedAnswers.push(selected ? selected.label : '')
 			if (answers.value[i] == question.correctKey) score += 1
 		}
-		saveWrongQuestionsForModule('javascript', 'JavaScript', 'javascript-async-practice', currentLanguage.value == 'zh' ? '异步 JavaScript 测验' : 'Async JavaScript Quiz', questions.value as any, selectedAnswers)
+		saveWrongQuestionsForModule('javascript', 'JavaScript', 'javascript-async-practice', currentLanguage.value == 'zh' ? '异步 JavaScript 测验' : 'Async JavaScript Quiz', questions.value as any, selectedAnswers, wrongQuestionIds.value, wrongAnswers.value)
 		const savedScore = Number(uni.getStorageSync(SCORE_KEY) || 0)
 		uni.setStorageSync(SCORE_KEY, score > savedScore ? score : savedScore)
 		resultMessage.value = copy.value.scorePrefix + score + copy.value.scoreMiddle
 		showNextButton.value = score == 3
 	}
-	const goToNextModule = () => { uni.navigateTo({ url: '/pages/javascriptDom/javascriptDom' }) }
+	// 满分后引导用户进入下一个学习模块
+	const goToNextModule = () => { openStudyModule('javascript-dom') }
 	onShow(() => { currentLanguage.value = getCurrentLanguage() })
 </script>
 

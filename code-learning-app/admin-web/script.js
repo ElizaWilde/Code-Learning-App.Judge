@@ -1,5 +1,5 @@
-// 功能：管理后台交互逻辑，封装接口请求、数据渲染、表单提交和状态切换。
-// 基础配置：集中维护后端地址、本地存储 key、轮询间隔和题目目录排序规则。
+// 基础配置：集中维护后端地址、本地存储 key、轮询间隔和题目目录排序规则
+// 功能：后台管理页交互逻辑，负责登录、接口请求、题库管理、判题配置、数据分析、用户管理和社区审核
 const API_ORIGIN = "http://127.0.0.1:8080";
 const TOKEN_KEY = "codebox_admin_token";
 const APP_LANGUAGE_KEY = "appLanguage";
@@ -38,7 +38,7 @@ const moduleMeta = {
 	},
 	"community-moderation": {
 		title: "Community Moderation",
-		copy: "Inspect submitted community posts, review reported content, and update moderation status.",
+		copy: "Inspect submitted community posts and update moderation status.",
 		status: "Community Moderation"
 	}
 };
@@ -87,7 +87,7 @@ const translations = {
 		"module.userManagement.copy": "Review platform accounts, inspect assigned permissions, and update user roles.",
 		"module.userManagement.status": "User Management",
 		"module.communityModeration.title": "Community Moderation",
-		"module.communityModeration.copy": "Inspect submitted community posts, review reported content, and update moderation status.",
+		"module.communityModeration.copy": "Inspect submitted community posts and update moderation status.",
 		"module.communityModeration.status": "Community Moderation",
 		"common.noAccessTitle": "No Module Access",
 		"common.noAccessCopy": "This account is authenticated, but it does not have permission to access any admin module.",
@@ -96,6 +96,106 @@ const translations = {
 		"common.loginFailed": "Login failed.",
 		"common.unreachableLogin": "Unable to reach the login server.",
 		"common.rolePrefix": "Role:",
+		"common.refreshUsers": "Refresh Users",
+		"user.directory": "User Directory",
+		"user.details": "User Details",
+		"user.role": "Role",
+		"user.userType": "User Type",
+		"user.saveRole": "Save Role",
+		"user.roleAdmin": "admin",
+		"user.roleQuestionManager": "question_manager",
+		"user.roleJudgeManager": "judge_manager",
+		"user.roleAnalyst": "analyst",
+		"user.roleUser": "user",
+		"user.typeNormal": "normal",
+		"user.typeExpert": "expert",
+		"moderation.queue": "Moderation Queue",
+		"moderation.refreshQueue": "Refresh Queue",
+		"moderation.postReview": "Post Review",
+		"moderation.summary": "Summary",
+		"moderation.fullContent": "Full Content",
+		"moderation.status": "Status",
+		"moderation.statusPending": "pending",
+		"moderation.statusApproved": "approved",
+		"moderation.statusRejected": "rejected",
+		"moderation.note": "Moderation Note",
+		"moderation.saveDecision": "Save Moderation Decision",
+		"quest.directory": "Quest Directory",
+		"quest.newQuest": "New Quest",
+		"quest.details": "Quest Details",
+		"quest.question": "Question",
+		"quest.example": "Example",
+		"quest.constraints": "Constraints",
+		"quest.labels": "Labels",
+		"quest.bestApproach": "Judge Result: Best Approach",
+		"quest.reference": "Judge Result: Reference",
+		"quest.judgeCases": "Run Logs / Judge Cases",
+		"quest.visibleTests": "Visible tests",
+		"quest.hiddenTests": "Hidden tests",
+		"quest.referenceSolution": "Reference Solution",
+		"quest.editor": "Quest Editor",
+		"quest.editorCopy": "Create a new quest or update the selected quest. New quests must use a supported judge kind.",
+		"quest.questId": "Quest ID",
+		"quest.title": "Title",
+		"quest.difficulty": "Difficulty",
+		"quest.difficultyClass": "Difficulty Class",
+		"quest.category": "Category",
+		"quest.acceptance": "Acceptance",
+		"quest.judgeKind": "Judge Kind",
+		"quest.referenceTitle": "Reference Title",
+		"quest.description": "Description",
+		"quest.bestApproachPlain": "Best Approach",
+		"quest.referenceNote": "Reference Note",
+		"quest.starterCodes": "Starter Codes",
+		"quest.starterCodesCopy": "These are shown to learners before they write a solution.",
+		"quest.pythonStarter": "Python Starter Code",
+		"quest.javaStarter": "Java Starter Code",
+		"quest.referenceSolutions": "Reference Solutions",
+		"quest.referenceSolutionsCopy": "These are unlocked in the learner quest page after submit.",
+		"quest.pythonReference": "Python Reference Solution",
+		"quest.javaReference": "Java Reference Solution",
+		"quest.judgeTests": "Judge Tests",
+		"quest.judgeTestsCopy": "Provide JSON arrays with objects shaped like { \"name\": \"...\", \"input\": ..., \"expected\": ... }.",
+		"quest.visibleTestsJson": "Visible Tests JSON",
+		"quest.hiddenTestsJson": "Hidden Tests JSON",
+		"quest.deleteQuest": "Delete Quest",
+		"quest.saveQuest": "Save Quest",
+		"judge.queueMonitoring": "Queue Monitoring",
+		"judge.recentJobs": "Recent Jobs",
+		"judge.refreshQueue": "Refresh Queue",
+		"judge.config": "Evaluation Configuration",
+		"judge.languageConfig": "Language Configuration",
+		"judge.languageConfigCopy": "Enable languages and control how the judge resolves source files and entry points.",
+		"judge.enabled": "Enabled",
+		"judge.label": "Label",
+		"judge.dockerImage": "Docker Image",
+		"judge.sourceFile": "Source File",
+		"judge.entryPoint": "Entry Point",
+		"judge.notes": "Notes",
+		"judge.containerCommands": "Container Commands",
+		"judge.containerCommandsCopy": "These commands run inside the language container. Use one argument per line. Available placeholders: {source}, {entry}.",
+		"judge.pythonCompile": "Python Compile Command",
+		"judge.pythonRun": "Python Run Command",
+		"judge.javaCompile": "Java Compile Command",
+		"judge.javaRun": "Java Run Command",
+		"judge.resourceLimits": "Resource Limits",
+		"judge.resourceLimitsCopy": "Control compile/runtime limits, Docker memory, output buffering, and queue concurrency.",
+		"judge.compileTimeout": "Compile Timeout (ms)",
+		"judge.runTimeout": "Run Timeout (ms)",
+		"judge.maxBuffer": "Max Output Buffer (KB)",
+		"judge.memoryLimit": "Memory Limit (KB)",
+		"judge.maxConcurrent": "Max Concurrent Jobs",
+		"judge.historySize": "Queue History Size",
+		"judge.queueAlert": "Queue Alert Threshold",
+		"judge.saveConfig": "Save Judge Configuration",
+		"analytics.controls": "Analytics Controls",
+		"analytics.timeWindow": "Time Window (days)",
+		"analytics.refresh": "Refresh Analytics",
+		"analytics.stats": "User Learning Data Statistics",
+		"analytics.statsCopy": "ECharts charts for daily activity, quest outcomes, and wrong-answer distribution across learning modules.",
+		"analytics.submissionVolume": "Quest Submission Volume",
+		"analytics.passRate": "Quest Pass Rate",
+		"analytics.wrongDistribution": "Distribution of Incorrect Answers",
 		"state.loadQueueMetrics": "Load judge queue metrics from backend.",
 		"state.noJudgeConfig": "No judge configuration loaded.",
 		"state.loadJudgeConfig": "Load the current backend configuration before editing.",
@@ -164,6 +264,9 @@ const translations = {
 		,"dynamic.configurationUpdatedAt":"Configuration updated at"
 		,"dynamic.unknownTime":"unknown time"
 		,"dynamic.judgeConfigLoaded":"Judge configuration loaded."
+		,"dynamic.savingJudgeConfig":"Saving judge configuration..."
+		,"dynamic.unableSaveJudgeConfig":"Unable to save judge configuration."
+		,"dynamic.judgeConfigSaved":"Judge configuration saved."
 		,"dynamic.loadingJudgeConfig":"Loading judge configuration..."
 		,"dynamic.unableLoadJudgeConfig":"Unable to load judge configuration."
 		,"dynamic.loadingQueueMetrics":"Loading queue metrics..."
@@ -191,7 +294,6 @@ const translations = {
 		,"dynamic.userTypeUpdateFailed":"User type update failed."
 		,"dynamic.accountSettingsUpdated":"Account settings updated."
 		,"dynamic.noModerationPosts":"No moderation posts were returned."
-		,"dynamic.reports":"reports"
 		,"dynamic.pending":"Pending"
 		,"dynamic.approved":"Approved"
 		,"dynamic.rejected":"Rejected"
@@ -206,6 +308,13 @@ const translations = {
 		,"dynamic.noQuestionSelected":"No question selected."
 		,"dynamic.noUserSelected":"No user selected."
 		,"dynamic.noPostSelected":"No post selected."
+		,"dynamic.loadingQuestionBank":"Loading question bank..."
+		,"dynamic.unableLoadQuestionBank":"Unable to load question bank data."
+		,"dynamic.questionBankRequestFailed":"Question bank request failed."
+		,"dynamic.loadingAnalytics":"Loading backend learning analytics..."
+		,"dynamic.unableLoadAnalytics":"Unable to load learning analytics."
+		,"dynamic.jsonArrayRequired":"must be a JSON array."
+		,"dynamic.invalidJson":"is invalid JSON."
 	},
 	zh: {
 		"login.kicker": "CodeBox 管理后台入口",
@@ -252,6 +361,106 @@ const translations = {
 		"common.loginFailed": "登录失败。",
 		"common.unreachableLogin": "无法连接登录服务器。",
 		"common.rolePrefix": "角色：",
+		"common.refreshUsers": "刷新用户",
+		"user.directory": "用户目录",
+		"user.details": "用户详情",
+		"user.role": "角色",
+		"user.userType": "用户类型",
+		"user.saveRole": "保存角色",
+		"user.roleAdmin": "管理员",
+		"user.roleQuestionManager": "题库管理员",
+		"user.roleJudgeManager": "评测管理员",
+		"user.roleAnalyst": "数据分析员",
+		"user.roleUser": "普通用户",
+		"user.typeNormal": "普通用户",
+		"user.typeExpert": "专家用户",
+		"moderation.queue": "审核队列",
+		"moderation.refreshQueue": "刷新队列",
+		"moderation.postReview": "帖子审核",
+		"moderation.summary": "摘要",
+		"moderation.fullContent": "全文内容",
+		"moderation.status": "状态",
+		"moderation.statusPending": "待审核",
+		"moderation.statusApproved": "已通过",
+		"moderation.statusRejected": "已拒绝",
+		"moderation.note": "审核备注",
+		"moderation.saveDecision": "保存审核结果",
+		"quest.directory": "题目目录",
+		"quest.newQuest": "新建题目",
+		"quest.details": "题目详情",
+		"quest.question": "题面",
+		"quest.example": "示例",
+		"quest.constraints": "约束条件",
+		"quest.labels": "标签",
+		"quest.bestApproach": "评测结果：最佳思路",
+		"quest.reference": "评测结果：参考题解",
+		"quest.judgeCases": "运行日志 / 测试用例",
+		"quest.visibleTests": "可见测试",
+		"quest.hiddenTests": "隐藏测试",
+		"quest.referenceSolution": "参考代码",
+		"quest.editor": "题目编辑器",
+		"quest.editorCopy": "新建题目或更新当前选中的题目。新题目必须使用已支持的评测类型。",
+		"quest.questId": "题目 ID",
+		"quest.title": "标题",
+		"quest.difficulty": "难度",
+		"quest.difficultyClass": "难度样式",
+		"quest.category": "分类",
+		"quest.acceptance": "通过率",
+		"quest.judgeKind": "评测类型",
+		"quest.referenceTitle": "参考标题",
+		"quest.description": "题目描述",
+		"quest.bestApproachPlain": "最佳思路",
+		"quest.referenceNote": "参考说明",
+		"quest.starterCodes": "起始代码",
+		"quest.starterCodesCopy": "这些代码会在学习者编写解法前展示。",
+		"quest.pythonStarter": "Python 起始代码",
+		"quest.javaStarter": "Java 起始代码",
+		"quest.referenceSolutions": "参考解法",
+		"quest.referenceSolutionsCopy": "这些内容会在学习端提交后解锁。",
+		"quest.pythonReference": "Python 参考解法",
+		"quest.javaReference": "Java 参考解法",
+		"quest.judgeTests": "评测测试",
+		"quest.judgeTestsCopy": "请提供 JSON 数组，每项形如 { \"name\": \"...\", \"input\": ..., \"expected\": ... }。",
+		"quest.visibleTestsJson": "可见测试 JSON",
+		"quest.hiddenTestsJson": "隐藏测试 JSON",
+		"quest.deleteQuest": "删除题目",
+		"quest.saveQuest": "保存题目",
+		"judge.queueMonitoring": "队列监控",
+		"judge.recentJobs": "最近任务",
+		"judge.refreshQueue": "刷新队列",
+		"judge.config": "评测配置",
+		"judge.languageConfig": "语言配置",
+		"judge.languageConfigCopy": "启用语言，并控制评测服务如何解析源文件和入口点。",
+		"judge.enabled": "启用",
+		"judge.label": "显示名称",
+		"judge.dockerImage": "Docker 镜像",
+		"judge.sourceFile": "源文件",
+		"judge.entryPoint": "入口点",
+		"judge.notes": "备注",
+		"judge.containerCommands": "容器命令",
+		"judge.containerCommandsCopy": "这些命令会在语言容器内执行。每行填写一个参数。可用占位符：{source}、{entry}。",
+		"judge.pythonCompile": "Python 编译命令",
+		"judge.pythonRun": "Python 运行命令",
+		"judge.javaCompile": "Java 编译命令",
+		"judge.javaRun": "Java 运行命令",
+		"judge.resourceLimits": "资源限制",
+		"judge.resourceLimitsCopy": "控制编译/运行超时、Docker 内存、输出缓冲区和队列并发。",
+		"judge.compileTimeout": "编译超时（ms）",
+		"judge.runTimeout": "运行超时（ms）",
+		"judge.maxBuffer": "最大输出缓冲区（KB）",
+		"judge.memoryLimit": "内存限制（KB）",
+		"judge.maxConcurrent": "最大并发任务数",
+		"judge.historySize": "队列历史数量",
+		"judge.queueAlert": "队列告警阈值",
+		"judge.saveConfig": "保存评测配置",
+		"analytics.controls": "统计控制",
+		"analytics.timeWindow": "时间窗口（天）",
+		"analytics.refresh": "刷新统计",
+		"analytics.stats": "用户学习数据统计",
+		"analytics.statsCopy": "使用 ECharts 展示日活、题目结果和各学习模块的错题分布。",
+		"analytics.submissionVolume": "题目提交量",
+		"analytics.passRate": "题目通过率",
+		"analytics.wrongDistribution": "错题分布",
 		"state.loadQueueMetrics": "从后端加载评测队列指标。",
 		"state.noJudgeConfig": "尚未加载评测配置。",
 		"state.loadJudgeConfig": "编辑前请先加载当前后端配置。",
@@ -320,6 +529,9 @@ const translations = {
 		,"dynamic.configurationUpdatedAt":"配置更新时间："
 		,"dynamic.unknownTime":"未知时间"
 		,"dynamic.judgeConfigLoaded":"评测配置已加载。"
+		,"dynamic.savingJudgeConfig":"正在保存评测配置..."
+		,"dynamic.unableSaveJudgeConfig":"无法保存评测配置。"
+		,"dynamic.judgeConfigSaved":"评测配置已保存。"
 		,"dynamic.loadingJudgeConfig":"正在加载评测配置..."
 		,"dynamic.unableLoadJudgeConfig":"无法加载评测配置。"
 		,"dynamic.loadingQueueMetrics":"正在加载队列指标..."
@@ -347,7 +559,6 @@ const translations = {
 		,"dynamic.userTypeUpdateFailed":"更新用户类型失败。"
 		,"dynamic.accountSettingsUpdated":"账号设置已更新。"
 		,"dynamic.noModerationPosts":"后端未返回任何待审核帖子。"
-		,"dynamic.reports":"举报数"
 		,"dynamic.pending":"待审核"
 		,"dynamic.approved":"已通过"
 		,"dynamic.rejected":"已拒绝"
@@ -362,6 +573,13 @@ const translations = {
 		,"dynamic.noQuestionSelected":"未选择题目。"
 		,"dynamic.noUserSelected":"未选择用户。"
 		,"dynamic.noPostSelected":"未选择帖子。"
+		,"dynamic.loadingQuestionBank":"正在加载题库..."
+		,"dynamic.unableLoadQuestionBank":"无法加载题库数据。"
+		,"dynamic.questionBankRequestFailed":"题库请求失败。"
+		,"dynamic.loadingAnalytics":"正在加载后端学习分析..."
+		,"dynamic.unableLoadAnalytics":"无法加载学习分析数据。"
+		,"dynamic.jsonArrayRequired":"必须是 JSON 数组。"
+		,"dynamic.invalidJson":"不是有效的 JSON。"
 	}
 };
 
@@ -371,6 +589,41 @@ let currentLanguage = localStorage.getItem(APP_LANGUAGE_KEY) || "en";
 // 根据当前语言获取文案；如果当前语言缺失该 key，则回退到英文或原 key。
 function t(key) {
 	return translations[currentLanguage]?.[key] || translations.en[key] || key;
+}
+
+function translateMappedValue(value, keyMap) {
+	const key = keyMap[value];
+	return key ? t(key) : value;
+}
+
+function getRoleLabel(role) {
+	return translateMappedValue(role, {
+		admin: "user.roleAdmin",
+		question_manager: "user.roleQuestionManager",
+		judge_manager: "user.roleJudgeManager",
+		analyst: "user.roleAnalyst",
+		user: "user.roleUser"
+	});
+}
+
+function getUserTypeLabel(userType) {
+	return translateMappedValue(userType, {
+		normal: "user.typeNormal",
+		expert: "user.typeExpert"
+	});
+}
+
+function getModerationStatusLabel(status) {
+	return translateMappedValue(status, {
+		pending: "moderation.statusPending",
+		approved: "moderation.statusApproved",
+		rejected: "moderation.statusRejected"
+	});
+}
+
+function getPermissionLabel(permission) {
+	const meta = getModuleMeta(permission);
+	return meta ? meta.title : permission;
 }
 
 // 根据模块 id 生成可展示的标题、说明和状态文案，支持国际化回退。
@@ -887,25 +1140,28 @@ function parseJsonArray(text, label) {
 	try {
 		const parsed = JSON.parse(String(text || "[]"));
 		if (!Array.isArray(parsed)) {
-			throw new Error(`${label} must be a JSON array.`);
+			return {
+				ok: false,
+				message: `${label} ${t("dynamic.jsonArrayRequired")}`
+			};
 		}
 		return { ok: true, value: parsed };
 	} catch (error) {
 		return {
 			ok: false,
-			message: error instanceof Error ? error.message : `${label} is invalid JSON.`
+			message: `${label} ${t("dynamic.invalidJson")}`
 		};
 	}
 }
 
 // 从题目表单收集并清洗输入，组装为后端保存接口需要的题目对象。
 function collectQuestForm() {
-	const visibleTests = parseJsonArray(questFormVisibleTests.value, "Visible tests");
+	const visibleTests = parseJsonArray(questFormVisibleTests.value, t("quest.visibleTestsJson"));
 	if (!visibleTests.ok) {
 		return visibleTests;
 	}
 
-	const hiddenTests = parseJsonArray(questFormHiddenTests.value, "Hidden tests");
+	const hiddenTests = parseJsonArray(questFormHiddenTests.value, t("quest.hiddenTestsJson"));
 	if (!hiddenTests.ok) {
 		return hiddenTests;
 	}
@@ -957,15 +1213,15 @@ async function loadQuestionBank() {
 		return;
 	}
 
-	questDirectory.innerHTML = `<p class="directory-empty">${currentLanguage === "zh" ? "正在加载题库..." : "Loading question bank..."}</p>`;
+	questDirectory.innerHTML = `<p class="directory-empty">${t("dynamic.loadingQuestionBank")}</p>`;
 	questTotal.textContent = t("dynamic.loadingQuests");
 
 	try {
 		const { response, data } = await apiRequest("/api/judge/quests", { method: "GET" });
 
 		if (!response.ok || !Array.isArray(data?.items)) {
-			questDirectory.innerHTML = `<p class="directory-empty">${currentLanguage === "zh" ? "无法加载题库数据。" : "Unable to load question bank data."}</p>`;
-			questTotal.textContent = data?.message || (currentLanguage === "zh" ? "题库请求失败。" : "Question bank request failed.");
+			questDirectory.innerHTML = `<p class="directory-empty">${t("dynamic.unableLoadQuestionBank")}</p>`;
+			questTotal.textContent = data?.message || t("dynamic.questionBankRequestFailed");
 			return;
 		}
 
@@ -981,7 +1237,7 @@ async function loadQuestionBank() {
 		}
 	} catch (_error) {
 		questDirectory.innerHTML = `<p class="directory-empty">${t("dynamic.unreachableApi")}</p>`;
-		questTotal.textContent = currentLanguage === "zh" ? "题库请求失败。" : "Question bank request failed.";
+		questTotal.textContent = t("dynamic.questionBankRequestFailed");
 	}
 }
 
@@ -1346,13 +1602,13 @@ async function loadJudgeQueue() {
 
 // 按选择的天数窗口加载学习统计数据并刷新仪表盘。
 async function loadAnalyticsDashboard() {
-	analyticsStatusCopy.textContent = currentLanguage === "zh" ? "正在加载后端学习分析..." : "Loading backend learning analytics...";
+	analyticsStatusCopy.textContent = t("dynamic.loadingAnalytics");
 
 	try {
 		const days = encodeURIComponent(String(analyticsDaysSelect.value || "14"));
 		const { response, data } = await apiRequest(`/api/analytics/dashboard?days=${days}`, { method: "GET" });
 		if (!response.ok || !data) {
-			analyticsStatusCopy.textContent = data?.message || (currentLanguage === "zh" ? "无法加载学习分析数据。" : "Unable to load learning analytics.");
+			analyticsStatusCopy.textContent = data?.message || t("dynamic.unableLoadAnalytics");
 			return;
 		}
 
@@ -1361,7 +1617,7 @@ async function loadAnalyticsDashboard() {
 			? `${t("dynamic.loadedAnalyticsWindow")}${data.windowDays || analyticsDaysSelect.value}${t("dynamic.dayAnalyticsWindow")}`
 			: `${t("dynamic.loadedAnalyticsWindow")} ${data.windowDays || analyticsDaysSelect.value}${t("dynamic.dayAnalyticsWindow")}`;
 	} catch (_error) {
-	analyticsStatusCopy.textContent = currentLanguage === "zh" ? "无法连接后端 API。" : "Unable to reach the backend API.";
+	analyticsStatusCopy.textContent = t("dynamic.unreachableApi");
 	}
 }
 
@@ -1423,7 +1679,7 @@ function collectJudgeConfigForm() {
 
 // 提交评测配置更新，成功后用后端返回值回填表单。
 async function saveJudgeConfig() {
-	judgeConfigStatus.textContent = currentLanguage === "zh" ? "正在保存评测配置..." : "Saving judge configuration...";
+	judgeConfigStatus.textContent = t("dynamic.savingJudgeConfig");
 
 	try {
 		const payload = collectJudgeConfigForm();
@@ -1433,12 +1689,12 @@ async function saveJudgeConfig() {
 		});
 
 		if (!response.ok || !data?.config) {
-			judgeConfigStatus.textContent = data?.message || (currentLanguage === "zh" ? "无法保存评测配置。" : "Unable to save judge configuration.");
+			judgeConfigStatus.textContent = data?.message || t("dynamic.unableSaveJudgeConfig");
 			return;
 		}
 
 		applyJudgeConfig(data.config);
-		judgeConfigStatus.textContent = currentLanguage === "zh" ? "评测配置已保存。" : "Judge configuration saved.";
+		judgeConfigStatus.textContent = t("dynamic.judgeConfigSaved");
 		void loadJudgeQueue();
 	} catch (_error) {
 		judgeConfigStatus.textContent = t("dynamic.unreachableApi");
@@ -1474,7 +1730,7 @@ function renderUserDirectory() {
 
 		const meta = document.createElement("span");
 		meta.className = "directory-meta";
-		meta.textContent = `${t("common.rolePrefix")} ${user.role}`;
+		meta.textContent = `${t("common.rolePrefix")} ${getRoleLabel(user.role)}`;
 
 		const sub = document.createElement("span");
 		sub.className = "directory-sub";
@@ -1523,10 +1779,10 @@ function renderUserDetail(user) {
 	userDetailPermissions.innerHTML = "";
 
 	(user.permissions || []).forEach((permission) => {
-		userDetailPermissions.appendChild(renderTag(permission));
+		userDetailPermissions.appendChild(renderTag(getPermissionLabel(permission)));
 	});
 
-	userDetailPermissions.appendChild(renderTag(`userType: ${user.userType || "normal"}`));
+	userDetailPermissions.appendChild(renderTag(`${t("user.userType")}：${getUserTypeLabel(user.userType || "normal")}`));
 
 	if (!Array.isArray(user.permissions) || user.permissions.length === 0) {
 		userDetailPermissions.appendChild(renderTag(t("dynamic.noAdminModules")));
@@ -1635,10 +1891,7 @@ function renderModerationDirectory() {
 
 		const meta = document.createElement("span");
 		meta.className = "directory-meta";
-		const moderationStatusLabel = currentLanguage === "zh"
-			? ({ pending: "待审核", approved: "已通过", rejected: "已拒绝" }[item.status] || item.status)
-			: item.status;
-		meta.textContent = `${moderationStatusLabel} | ${t("dynamic.reports")} ${item.reportCount}`;
+		meta.textContent = getModerationStatusLabel(item.status);
 
 		const sub = document.createElement("span");
 		sub.className = "directory-sub";
@@ -1657,15 +1910,13 @@ function renderModerationSummary() {
 	const pendingCount = moderationItems.filter((item) => item.status === "pending").length;
 	const approvedCount = moderationItems.filter((item) => item.status === "approved").length;
 	const rejectedCount = moderationItems.filter((item) => item.status === "rejected").length;
-	const totalReports = moderationItems.reduce((sum, item) => sum + Number(item.reportCount || 0), 0);
 
 	moderationSummaryMetrics.appendChild(renderMetricCard(t("dynamic.pending"), pendingCount, pendingCount > 0 ? "metric-alert" : ""));
 	moderationSummaryMetrics.appendChild(renderMetricCard(t("dynamic.approved"), approvedCount));
 	moderationSummaryMetrics.appendChild(renderMetricCard(t("dynamic.rejected"), rejectedCount));
-	moderationSummaryMetrics.appendChild(renderMetricCard(t("dynamic.reports"), totalReports));
 }
 
-// 展示选中帖子的摘要、全文、状态、举报数和审核备注。
+// 展示选中帖子的摘要、全文、状态和审核备注。
 function renderModerationDetail(item) {
 	if (!item) {
 		moderationEmpty.classList.remove("is-hidden");
@@ -1684,11 +1935,8 @@ function renderModerationDetail(item) {
 	moderationStatusSelect.value = item.status || "pending";
 	moderationNoteInput.value = item.moderationNote || "";
 	moderationDetailTags.innerHTML = "";
-	const moderationStatusLabel = currentLanguage === "zh"
-		? ({ pending: "待审核", approved: "已通过", rejected: "已拒绝" }[item.status] || item.status)
-		: item.status;
+	const moderationStatusLabel = getModerationStatusLabel(item.status);
 	moderationDetailTags.appendChild(renderTag(`${currentLanguage === "zh" ? "状态" : "status"}: ${moderationStatusLabel}`));
-	moderationDetailTags.appendChild(renderTag(`${t("dynamic.reports")}: ${item.reportCount || 0}`));
 	(item.tags || []).forEach((tag) => {
 		moderationDetailTags.appendChild(renderTag(`#${tag}`));
 	});
@@ -1696,7 +1944,7 @@ function renderModerationDetail(item) {
 
 // 从后端加载社区帖子审核队列，刷新列表和统计。
 async function loadModerationQueue() {
-	moderationStatusCopy.textContent = currentLanguage === "zh" ? "正在加载社区审核队列..." : "Loading community moderation queue...";
+	moderationStatusCopy.textContent = t("dynamic.loadingModerationQueue");
 
 	try {
 		const { response, data } = await apiRequest("/api/community/admin/posts", { method: "GET" });
@@ -1882,7 +2130,7 @@ function showLogin() {
 
 // 渲染当前登录管理员的角色徽标和权限模块。
 function renderUser(user) {
-	roleBadge.textContent = `${t("common.rolePrefix")} ${user.role}`;
+	roleBadge.textContent = `${t("common.rolePrefix")} ${getRoleLabel(user.role)}`;
 	applyPermissions(Array.isArray(user.permissions) ? user.permissions : []);
 }
 

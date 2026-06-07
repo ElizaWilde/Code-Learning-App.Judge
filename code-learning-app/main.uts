@@ -1,4 +1,5 @@
 // 功能：应用启动入口，创建并挂载 Vue/uni-app 实例。
+// 功能：应用启动入口，创建并挂载 Vue/uni-app 实例
 import App from './App.uvue'
 
 import { createSSRApp } from 'vue'

@@ -5,9 +5,15 @@ const db_1 = require("./db");
 const session_1 = require("./session");
 const roles_1 = require("./roles");
 const analyticsStore_1 = require("./analyticsStore");
+/**
+ * 认证和账号权限模块：负责登录注册、JWT 发放、当前用户读取、退出登录和管理员用户管理
+ */
+//Node.js 处理：/api/auth/register、/login、/me、/logout、/users 等 API 请求。用户登录后，Node.js 后端会生成 JWT 返回给前端
 const router = (0, express_1.Router)();
+// 默认管理员用于首次启动时进入后台；正式环境可以用环境变量覆盖
 const DEFAULT_ADMIN_USERNAME = process.env.CODEBOX_ADMIN_USERNAME?.trim() || "admin";
 const DEFAULT_ADMIN_PASSWORD = process.env.CODEBOX_ADMIN_PASSWORD?.trim() || "CodeBox123";
+// 统一校验登录/注册凭据，避免每个接口重复判断字段类型和长度规则
 function parseCredentials(body) {
     if (typeof body.username !== "string" || typeof body.password !== "string") {
         return null;
@@ -19,6 +25,7 @@ function parseCredentials(body) {
     }
     return { username, password };
 }
+// 只返回前端需要的公开用户字段，不返回 password_hash 等敏感信息
 function buildUserResponse(user) {
     return {
         id: user.id,
@@ -28,6 +35,7 @@ function buildUserResponse(user) {
         permissions: (0, session_1.getModulePermissions)(user.role)
     };
 }
+// 确保系统至少有一个 admin 账号；如果已有同名账号但角色不是 admin，则修正为 admin
 function ensureDefaultAdmin() {
     const existing = (0, db_1.findUserByUsername)(DEFAULT_ADMIN_USERNAME);
     if (!existing) {
@@ -39,6 +47,7 @@ function ensureDefaultAdmin() {
     }
 }
 ensureDefaultAdmin();
+// 返回认证模块的基础信息，后台登录页可用它展示默认管理员和规则
 router.get("/meta", (_req, res) => {
     return res.json({
         databasePath: (0, db_1.getDatabasePath)(),
@@ -48,6 +57,7 @@ router.get("/meta", (_req, res) => {
         defaultAdminUsername: DEFAULT_ADMIN_USERNAME
     });
 });
+// 注册普通用户：创建成功后直接签发 JWT，让用户不需要再登录一次
 router.post("/register", (req, res) => {
     const credentials = parseCredentials(req.body ?? {});
     if (!credentials) {
@@ -60,6 +70,7 @@ router.post("/register", (req, res) => {
             message: "username already exists"
         });
     }
+    // 前端即使传 admin 也会降级为 user，避免普通注册直接创建管理员
     const requestedRole = (0, roles_1.isUserRole)(req.body?.role) ? req.body.role : "user";
     const role = requestedRole === "admin" ? "user" : requestedRole;
     try {
@@ -82,6 +93,7 @@ router.post("/register", (req, res) => {
         });
     }
 });
+// 登录接口：校验密码成功后签发 JWT，并记录一次登录行为
 router.post("/login", (req, res) => {
     const credentials = parseCredentials(req.body ?? {});
     if (!credentials) {
@@ -103,11 +115,13 @@ router.post("/login", (req, res) => {
         user: buildUserResponse(user)
     });
 });
+// 当前用户接口：必须携带 Authorization: Bearer <JWT>。访问 /api/auth/me 之前，必须先通过 requireAuth
 router.get("/me", session_1.requireAuth, (req, res) => {
     return res.json({
         user: buildUserResponse(req.authUser)
     });
 });
+// 公开资料接口：不要求登录，只返回用户名和用户类型，供个人页兜底刷新使用
 router.get("/profile/:username", (req, res) => {
     const username = String(req.params.username || "").trim();
     if (username.length < 3) {
@@ -128,6 +142,7 @@ router.get("/profile/:username", (req, res) => {
         }
     });
 });
+// 退出登录：把当前 JWT 的 jti 加入吊销列表，前端也会清理本地 authToken
 router.post("/logout", session_1.requireAuth, (req, res) => {
     const token = (0, session_1.getRequestToken)(req);
     if (token) {
@@ -137,6 +152,7 @@ router.post("/logout", session_1.requireAuth, (req, res) => {
         message: "logout successful"
     });
 });
+// 管理员查看用户列表，包含角色、用户类型和该角色拥有的后台模块权限
 router.get("/users", (0, session_1.requireRole)(["admin"]), (_req, res) => {
     return res.json({
         users: (0, db_1.listUsers)().map((user) => ({
@@ -149,6 +165,7 @@ router.get("/users", (0, session_1.requireRole)(["admin"]), (_req, res) => {
         }))
     });
 });
+// 管理员修改指定用户的角色，例如 question_manager、judge_manager、analyst
 router.patch("/users/:username/role", (0, session_1.requireRole)(["admin"]), (req, res) => {
     const username = String(req.params.username || "").trim();
     const role = req.body?.role;
@@ -175,6 +192,7 @@ router.patch("/users/:username/role", (0, session_1.requireRole)(["admin"]), (re
         })
     });
 });
+// 管理员修改用户类型；expert 用户在社区等页面可以展示专家标识
 router.patch("/users/:username/type", (0, session_1.requireRole)(["admin"]), (req, res) => {
     const username = String(req.params.username || "").trim();
     const userType = req.body?.userType;

@@ -1,3 +1,4 @@
+// 功能：提供判题相关 API，包括题库目录、题目详情、运行代码、提交代码和后台判题配置管理
 import { Request, Response, Router } from "express";
 import { JudgeLanguage } from "./judgeCatalog";
 import { judgeSubmission } from "./judgeService";
@@ -15,6 +16,7 @@ type JudgeBody = {
   username?: unknown;
 };
 
+// 目前判题服务只允许 Python 和 Java 两种语言
 function isJudgeLanguage(value: unknown): value is JudgeLanguage {
   return value === "python" || value === "java";
 }
@@ -106,6 +108,7 @@ router.get("/quest/:id", (req: Request, res: Response) => {
   return res.json(quest);
 });
 
+// run 和 submit 共用同一套请求校验、排队执行、结果记录逻辑
 async function handleJudge(req: Request, res: Response, mode: "run" | "submit") {
   const body = (req.body ?? {}) as JudgeBody;
 

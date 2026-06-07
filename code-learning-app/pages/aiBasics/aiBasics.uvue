@@ -1,4 +1,4 @@
-<!-- 功能：AI 基础学习页，展示人工智能知识点、学习路径和练习入口。 -->
+<!-- 功能：AI 基础学习页，展示人工智能知识点、学习路径和练习入口 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">
@@ -119,10 +119,12 @@
 		return copyMap[currentLanguage.value] || copyMap.en
 	})
 
+	// 打开学习模块详情页前，先把模块 ID 写入本地存储
 	const openModule = (moduleId : string) => {
 		openStudyModule(moduleId)
 	}
 
+	// 项目案例通过 projectId 进入统一的项目展示页
 	const openProject = (projectId: string) => {
 		uni.setStorageSync(ACTIVE_PROJECT_KEY, projectId)
 		uni.navigateTo({
@@ -130,6 +132,7 @@
 		})
 	}
 
+	// 页面重新显示时刷新语言文案
 	onShow(() => {
 		currentLanguage.value = getCurrentLanguage()
 	})

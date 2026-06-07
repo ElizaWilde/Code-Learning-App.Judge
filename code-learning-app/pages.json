@@ -97,6 +97,12 @@
 			}
 		},
 		{
+			"path": "pages/videoPlayer/videoPlayer",
+			"style": {
+				"navigationBarTitleText": "Video"
+			}
+		},
+		{
 			"path": "pages/javascriptSyntax/javascriptSyntax",
 			"style": {
 				"navigationBarTitleText": "JS Syntax and Data Types"

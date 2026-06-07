@@ -4,12 +4,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.judgeSubmission = judgeSubmission;
+// 功能：执行在线判题核心逻辑，包装用户代码、调用 Docker 运行测试用例，并生成判题结果
 const node_child_process_1 = require("node:child_process");
 const promises_1 = __importDefault(require("node:fs/promises"));
 const node_os_1 = __importDefault(require("node:os"));
 const node_path_1 = __importDefault(require("node:path"));
 const judgeAdmin_1 = require("./judgeAdmin");
 const questStore_1 = require("./questStore");
+// 判题入口：根据题目、语言、代码和模式选择测试用例并逐个执行
 async function judgeSubmission(questId, language, code, mode) {
     const quest = (0, questStore_1.getQuestDefinition)(questId);
     if (!quest) {
@@ -73,6 +75,7 @@ async function judgeSubmission(questId, language, code, mode) {
     }
     return finalizeJudgeResponse(quest, logs, passedCount, tests.length, "none", "All test cases passed.", totalRuntimeMs);
 }
+// 汇总测试日志并生成前端需要的判题响应
 function finalizeJudgeResponse(quest, logs, passedCount, totalCount, errorType, errorHint, runtimeMs) {
     const score = totalCount === 0 ? 0 : Math.round((passedCount / totalCount) * 100);
     const status = passedCount === totalCount ? "accepted" : "failed";
@@ -94,6 +97,7 @@ function finalizeJudgeResponse(quest, logs, passedCount, totalCount, errorType, 
         referenceNote: quest.referenceNote
     };
 }
+// 单个测试用例执行流程：生成临时代码、调用 Docker、解析输出并比对结果
 async function runSingleTest(quest, language, code, testCase) {
     const workdir = await promises_1.default.mkdtemp(node_path_1.default.join(node_os_1.default.tmpdir(), "cl-judge-"));
     try {
@@ -209,6 +213,7 @@ function getSourceFiles(language, source) {
     const languageConfig = (0, judgeAdmin_1.getLanguageAdminConfig)(language);
     return [{ name: languageConfig.sourceFileName, content: source }];
 }
+// 使用 Docker 隔离执行用户代码，限制网络、CPU、进程数和内存
 async function executeInDocker(language, workdir) {
     const languageConfig = (0, judgeAdmin_1.getLanguageAdminConfig)(language);
     const limits = (0, judgeAdmin_1.getResourceLimits)();
@@ -476,6 +481,7 @@ function stringifyValue(value) {
 function safeTrim(value) {
     return value.replace(/\r/g, "").trim();
 }
+// 把用户提交的函数或类包装成可独立运行的 Python/Java 程序
 function buildWrappedSource(quest, language, code, testCase) {
     if (language === "python") {
         return buildPythonSource(quest.kind, code, testCase.input);
@@ -505,6 +511,7 @@ function javaStringArray(values) {
 function javaCharGrid(grid) {
     return `new char[][]{${grid.map((row) => `{${row.map((cell) => `'${cell}'`).join(", ")}}`).join(", ")}}`;
 }
+// 根据题目类型生成 Python 测试入口代码
 function buildPythonSource(kind, code, input) {
     const helpers = `
 import json
@@ -602,6 +609,7 @@ print(json.dumps(result))
     }
     return `${helpers}\n${code}\n${runner}`;
 }
+// 根据题目类型生成 Java Main 类和测试入口代码
 function buildJavaSource(kind, code, input) {
     const header = `import java.util.*;\n\n`;
     const helpers = `

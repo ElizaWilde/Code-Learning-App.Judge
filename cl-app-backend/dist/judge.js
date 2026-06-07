@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+// 功能：提供判题相关 API，包括题库目录、题目详情、运行代码、提交代码和后台判题配置管理
 const express_1 = require("express");
 const judgeService_1 = require("./judgeService");
 const session_1 = require("./session");
@@ -7,6 +8,7 @@ const judgeAdmin_1 = require("./judgeAdmin");
 const questStore_1 = require("./questStore");
 const analyticsStore_1 = require("./analyticsStore");
 const router = (0, express_1.Router)();
+// 目前判题服务只允许 Python 和 Java 两种语言
 function isJudgeLanguage(value) {
     return value === "python" || value === "java";
 }
@@ -83,6 +85,7 @@ router.get("/quest/:id", (req, res) => {
     }
     return res.json(quest);
 });
+// run 和 submit 共用同一套请求校验、排队执行、结果记录逻辑
 async function handleJudge(req, res, mode) {
     const body = (req.body ?? {});
     if (typeof body.questId !== "string" || typeof body.code !== "string" || !isJudgeLanguage(body.language)) {

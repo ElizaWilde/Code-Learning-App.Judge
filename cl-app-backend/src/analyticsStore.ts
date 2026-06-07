@@ -1,3 +1,4 @@
+// 功能：管理学习数据统计表，记录用户行为、判题提交、错题快照，并生成后台分析看板数据
 import { db } from "./db";
 
 type SubmissionStatus = "accepted" | "failed";
@@ -13,6 +14,7 @@ type WrongAnswerSnapshotInput = {
 
 const DEFAULT_ANALYTICS_DAYS = 14;
 
+// 学习模块目录用于补全错题分布，即使某模块暂无错题也能在看板中出现
 const learningModuleCatalog: Array<{
   pathId: string;
   pathTitle: string;
@@ -41,6 +43,7 @@ const learningModuleCatalog: Array<{
   { pathId: "ai-basics", pathTitle: "AI Basic Knowledge", moduleId: "ai-safety", moduleTitle: "Safety and Practical Workflows" }
 ];
 
+// 初始化学习分析相关表：行为事件、判题提交事件、错题快照
 db.exec(`
   CREATE TABLE IF NOT EXISTS analytics_activity_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,6 +74,7 @@ db.exec(`
   );
 `);
 
+// 把日期格式化成 YYYY-MM-DD，便于按天聚合统计
 function formatDateKey(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -82,11 +86,13 @@ function todayKey(): string {
   return formatDateKey(new Date());
 }
 
+// 未登录或空用户名统一归为 guest，避免统计写入空字符串
 function trimUsername(username: string): string {
   const normalized = username.trim();
   return normalized.length > 0 ? normalized : "guest";
 }
 
+// 记录用户行为事件，例如 login、judge_run、judge_submit、wrong_answer_sync
 export function recordUserActivity(username: string, eventType: string, eventDate: string = todayKey()): void {
   db.prepare(`
     INSERT INTO analytics_activity_events (username, event_type, event_date, created_at)
@@ -94,6 +100,7 @@ export function recordUserActivity(username: string, eventType: string, eventDat
   `).run(trimUsername(username), eventType, eventDate, new Date().toISOString());
 }
 
+// 记录代码提交结果，用于计算提交量和通过率
 export function recordQuestSubmission(username: string, questId: string, status: SubmissionStatus, eventDate: string = todayKey()): void {
   db.prepare(`
     INSERT INTO analytics_submission_events (username, quest_id, status, event_date, created_at)
@@ -101,6 +108,7 @@ export function recordQuestSubmission(username: string, questId: string, status:
   `).run(trimUsername(username), questId, status, eventDate, new Date().toISOString());
 }
 
+// 同步某个用户在某个学习模块下的错题数量，重复同步时覆盖旧快照
 export function upsertWrongAnswerSnapshot(input: WrongAnswerSnapshotInput): void {
   const username = trimUsername(input.username);
   const wrongCount = Math.max(0, Math.round(input.wrongCount));
@@ -129,6 +137,7 @@ export function upsertWrongAnswerSnapshot(input: WrongAnswerSnapshotInput): void
   recordUserActivity(username, "wrong_answer_sync");
 }
 
+// 构造最近 N 天的日期窗口，保证没有数据的日期也能返回 0
 function buildDateWindow(days: number): string[] {
   const output: string[] = [];
   const today = new Date();
@@ -138,11 +147,13 @@ function buildDateWindow(days: number): string[] {
   return output;
 }
 
+// 聚合后台学习数据看板，包括 DAU、提交量、通过率和错题分布
 export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
   const normalizedDays = Math.max(1, Math.min(60, Math.round(days)));
   const dateWindow = buildDateWindow(normalizedDays);
   const startDate = dateWindow[0];
 
+  // DAU 按天统计去重用户名
   const dauRows = db.prepare(`
     SELECT event_date, COUNT(DISTINCT username) AS value
     FROM analytics_activity_events
@@ -151,6 +162,7 @@ export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
     ORDER BY event_date ASC
   `).all(startDate) as Array<{ event_date: string; value: number }>;
 
+  // 提交量和 accepted 数量在同一条 SQL 里聚合，后续用于计算通过率
   const submissionRows = db.prepare(`
     SELECT event_date, COUNT(*) AS total,
            SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END) AS accepted
@@ -184,6 +196,7 @@ export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
     };
   });
 
+  // 错题快照按模块聚合，再映射回学习路径
   const distributionRows = db.prepare(`
     SELECT module_id, module_title, path_id, path_title, SUM(wrong_count) AS total
     FROM analytics_wrong_answer_snapshots
@@ -206,6 +219,7 @@ export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
     wrongCount: distributionMap.get(module.moduleId) ?? 0
   }));
 
+  // 如果数据库里出现目录外模块，也保留到看板结果中，避免数据被静默丢弃
   distributionRows.forEach((row) => {
     if (catalogModuleIds.has(row.module_id)) {
       return;
@@ -220,6 +234,7 @@ export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
     });
   });
 
+  // 把模块级错题数量汇总成学习路径级分布
   const pathTotals = new Map<string, { pathId: string; pathTitle: string; wrongCount: number }>();
   moduleDistribution.forEach((item) => {
     const existing = pathTotals.get(item.pathId);

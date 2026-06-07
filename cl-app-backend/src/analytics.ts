@@ -1,3 +1,4 @@
+// 功能：提供学习数据统计 API，包括后台看板数据读取和前端错题数量同步
 import { Request, Response, Router } from "express";
 import { getAnalyticsDashboard, upsertWrongAnswerSnapshot } from "./analyticsStore";
 import { AuthedRequest, requireRole } from "./session";
@@ -13,12 +14,14 @@ type WrongAnswerSyncBody = {
   wrongCount?: unknown;
 };
 
+// 后台学习分析看板接口，仅管理员和分析员可访问
 router.get("/dashboard", requireRole(["admin", "analyst"]), (req: AuthedRequest, res: Response) => {
   const daysParam = typeof req.query.days === "string" ? Number(req.query.days) : undefined;
   const days = Number.isFinite(daysParam) ? Number(daysParam) : undefined;
   return res.json(getAnalyticsDashboard(days));
 });
 
+// 前端练习页提交错题快照，用于统计各学习模块错题分布
 router.post("/wrong-answers", (req: Request, res: Response) => {
   const body = (req.body ?? {}) as WrongAnswerSyncBody;
 

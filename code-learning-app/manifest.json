@@ -1,4 +1,5 @@
 {
+	/*前端 App 的多端打包和平台能力配置文件*/
 	"name": "code-learning-app",
 	"appid": "",
 	"description": "",

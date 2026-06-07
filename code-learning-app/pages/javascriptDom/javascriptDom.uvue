@@ -1,4 +1,4 @@
-<!-- 功能：JavaScript DOM 学习页，讲解元素选择、事件绑定和页面操作知识。 -->
+<!-- 功能：JavaScript DOM 学习页，展示 DOM 和调试知识内容并进入对应练习 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">

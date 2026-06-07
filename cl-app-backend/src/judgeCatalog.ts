@@ -1,3 +1,7 @@
+// 功能：定义内置算法题库、题目类型、语言模板、可见测试和隐藏测试
+/*
+  * 内置题库数据结构和示例题目定义
+*/
 export type JudgeLanguage = "python" | "java";
 
 export type QuestKind =

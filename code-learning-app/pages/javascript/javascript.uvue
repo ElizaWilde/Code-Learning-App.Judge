@@ -1,4 +1,5 @@
-<!-- 功能：JavaScript 学习总览页，展示语法、函数、DOM、异步等学习模块。 -->
+<!-- 功能：JavaScript 学习总览页，展示语法、函数、DOM、异步等学习模块 -->
+
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">
@@ -153,15 +154,18 @@
 		domScore.value = Number(uni.getStorageSync(DOM_SCORE_KEY) || 0)
 	}
 
+	// 返回 JavaScript 学习路径页时刷新语言和练习得分状态
 	onShow(() => {
 		currentLanguage.value = getCurrentLanguage()
 		loadProgress()
 	})
 
+	// 打开学习模块详情页前，先把模块 ID 写入本地存储
 	const openModule = (moduleId : string) => {
 		openStudyModule(moduleId)
 	}
 
+	// 项目案例通过 projectId 进入统一的项目展示页
 	const openProject = (projectId: string) => {
 		uni.setStorageSync(ACTIVE_PROJECT_KEY, projectId)
 		uni.navigateTo({

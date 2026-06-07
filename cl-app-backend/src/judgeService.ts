@@ -1,3 +1,4 @@
+// 功能：执行在线判题核心逻辑，包装用户代码、调用 Docker 运行测试用例，并生成判题结果
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -60,6 +61,7 @@ type DockerJudgeExecutionResult = {
   launcherError: string | null;
 };
 
+// 判题入口：根据题目、语言、代码和模式选择测试用例并逐个执行
 export async function judgeSubmission(
   questId: string,
   language: JudgeLanguage,
@@ -139,6 +141,7 @@ export async function judgeSubmission(
   return finalizeJudgeResponse(quest, logs, passedCount, tests.length, "none", "All test cases passed.", totalRuntimeMs);
 }
 
+// 汇总测试日志并生成前端需要的判题响应
 function finalizeJudgeResponse(
   quest: QuestDefinition,
   logs: JudgeLog[],
@@ -170,6 +173,7 @@ function finalizeJudgeResponse(
   };
 }
 
+// 单个测试用例执行流程：生成临时代码、调用 Docker、解析输出并比对结果
 async function runSingleTest(
   quest: QuestDefinition,
   language: JudgeLanguage,
@@ -299,6 +303,7 @@ function getSourceFiles(language: JudgeLanguage, source: string): Array<{ name: 
   return [{ name: languageConfig.sourceFileName, content: source }];
 }
 
+// 使用 Docker 隔离执行用户代码，限制网络、CPU、进程数和内存
 async function executeInDocker(language: JudgeLanguage, workdir: string): Promise<DockerJudgeExecutionResult> {
   const languageConfig = getLanguageAdminConfig(language);
   const limits = getResourceLimits();
@@ -619,6 +624,7 @@ function safeTrim(value: string): string {
   return value.replace(/\r/g, "").trim();
 }
 
+// 把用户提交的函数或类包装成可独立运行的 Python/Java 程序
 function buildWrappedSource(quest: QuestDefinition, language: JudgeLanguage, code: string, testCase: JudgeTestCase): string {
   if (language === "python") {
     return buildPythonSource(quest.kind, code, testCase.input);
@@ -649,6 +655,7 @@ function javaCharGrid(grid: string[][]): string {
   return `new char[][]{${grid.map((row) => `{${row.map((cell) => `'${cell}'`).join(", ")}}`).join(", ")}}`;
 }
 
+// 根据题目类型生成 Python 测试入口代码
 function buildPythonSource(kind: QuestKind, code: string, input: unknown): string {
   const helpers = `
 import json
@@ -749,6 +756,7 @@ print(json.dumps(result))
   return `${helpers}\n${code}\n${runner}`;
 }
 
+// 根据题目类型生成 Java Main 类和测试入口代码
 function buildJavaSource(kind: QuestKind, code: string, input: unknown): string {
   const header = `import java.util.*;\n\n`;
   const helpers = `

@@ -1,0 +1,15 @@
+<!-- 功能：视频播放页，承载学习模块或课程内容的视频播放体验 -->
+<template>
+	<web-view :src="videoUrl"></web-view>
+</template>
+
+<script setup lang="uts">
+	import { ACTIVE_VIDEO_URL_KEY, toWebVideoPlayerUrl } from '../../utils/studyMedia.uts'
+
+	const videoUrl = ref('')
+
+	onLoad(() => {
+		const savedUrl = uni.getStorageSync(ACTIVE_VIDEO_URL_KEY) as string
+		videoUrl.value = toWebVideoPlayerUrl(savedUrl)
+	})
+</script>

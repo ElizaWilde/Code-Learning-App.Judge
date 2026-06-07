@@ -1,4 +1,4 @@
-<!-- 功能：Todo 实战项目页，演示任务清单应用的功能、代码思路和交互流程。 -->
+<!-- 功能：Todo 实战项目页，展示任务清单应用案例、功能拆解和实现思路 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">

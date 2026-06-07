@@ -1,4 +1,4 @@
-// 功能：检测内容数据中的单引号引用格式，辅助校验题库文本规范。
+// 功能：检测参考内容中的单引号格式问题，辅助定位题库文本规范问题
 const fs=require('fs');
 const p='f:/unishit/code-learning-app/pages/quest/quest.uvue';
 const s=fs.readFileSync(p,'utf8');

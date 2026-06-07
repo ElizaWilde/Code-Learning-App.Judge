@@ -1,4 +1,4 @@
-<!-- 功能：项目展示页，呈现实战项目案例、技术栈、步骤和成果说明。 -->
+<!-- 功能：项目展示页，根据项目 ID 展示实战案例说明、技术点和实现步骤 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">

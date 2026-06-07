@@ -1,4 +1,4 @@
-<!-- 功能：个人中心页，展示用户信息、学习统计、快捷入口和账号操作。 -->
+<!-- 功能：个人中心页，展示用户信息、打卡热力图、错题入口、提醒设置和退出登录 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">
@@ -119,10 +119,12 @@
 		return copyMap[currentLanguage.value] || copyMap.en
 	})
 
+	// 刷新个人中心展示的错题总数
 	const loadWrongQuestionCollection = () => {
 		totalWrongQuestionCount.value = getTotalWrongQuestionCount()
 	}
 
+	// 读取打卡摘要并转换成页面热力图列数据
 	const loadCheckInSummary = () => {
 		const summary = getCheckInSummary()
 		continuousDays.value = summary.streak
@@ -157,6 +159,7 @@
 		})
 	}
 
+	// 优先用 JWT 请求当前用户信息，失败时用本地用户名兜底
 	const refreshProfile = () => {
 		const token = uni.getStorageSync(AUTH_TOKEN_KEY) as string
 		const savedUsername = (uni.getStorageSync(LOGIN_USER_KEY) as string).trim()
@@ -228,6 +231,7 @@
 		loadCheckInSummary()
 	})
 
+	// 清理本地登录信息并回到登录页
 	const logout = () => {
 		uni.removeStorageSync(LOGIN_USER_KEY)
 		uni.removeStorageSync(LOGIN_USER_TYPE_KEY)

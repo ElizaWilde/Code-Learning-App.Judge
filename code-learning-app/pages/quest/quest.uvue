@@ -1,4 +1,4 @@
-<!-- 功能：编程题挑战页，加载题目、提交代码、展示运行结果和错题记录。 -->
+<!-- 功能：算法刷题页，加载题目、编辑 Python/Java 代码、运行/提交判题并展示结果 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="layout">
@@ -632,6 +632,7 @@ class Solution {
 		}
 	}
 
+	// 切换语言前先保存当前编辑器内容，再加载目标语言的代码模板
 	const switchLanguage = (language : JudgeLanguage) => {
 		syncCurrentCode()
 		selectedLanguage.value = language
@@ -661,6 +662,7 @@ class Solution {
 		}
 	}
 
+	// 优先从后端题库加载题目，失败时再使用页面内置兜底题目
 	const fetchQuest = () => {
 		uni.request({
 			url: getJudgeApiBase() + '/quest/' + activeQuestId.value,
@@ -684,6 +686,7 @@ class Solution {
 		})
 	}
 
+	// 后端不可用时加载本地兜底题目，并提示运行/提交仍需要后端
 	const loadFallbackQuest = () => {
 		const fallbackQuest = getFallbackQuest(activeQuestId.value)
 		judgeBackendAvailable.value = false
@@ -691,6 +694,7 @@ class Solution {
 		setQuestContent(fallbackQuest)
 	}
 
+	// 根据运行或提交结果更新本地任务状态和每日练习记录
 	const updateTaskStatus = (mode : string, status : string) => {
 		recordTodayCheckIn()
 		if (mode == 'submit' && status == 'accepted') {
@@ -700,6 +704,7 @@ class Solution {
 		uni.setStorageSync(QUEST_STATUS_PREFIX + activeQuestId.value, 'attempted')
 	}
 
+	// 把后端判题结果映射到页面状态，用于展示分数、日志、错误提示和参考信息
 	const applyJudgeResult = (mode : string, result : any) => {
 		if (result == null || typeof result != 'object') {
 			uni.showToast({
@@ -724,6 +729,7 @@ class Solution {
 		updateTaskStatus(mode, result.status as string)
 	}
 
+	// 调用后端 /api/judge/run 或 /api/judge/submit 执行判题
 	const judge = (mode : string) => {
 		syncCurrentCode()
 		judgeLoading.value = true
@@ -768,10 +774,12 @@ class Solution {
 		})
 	}
 
+	// Run 只跑可见测试用例，适合调试
 	const runCode = () => {
 		judge('run')
 	}
 
+	// Submit 跑完整测试用例，并显示参考答案区域
 	const submitCode = () => {
 		showReferenceSolutions.value = true
 		judge('submit')

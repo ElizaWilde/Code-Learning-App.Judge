@@ -1,4 +1,4 @@
-<!-- 功能：JavaScript 异步编程学习页，讲解回调、Promise 和 async/await 知识。 -->
+<!-- 功能：JavaScript 异步学习页，展示异步知识内容并进入对应练习 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">

@@ -1,8 +1,9 @@
-// 功能：提供简单国际化文案映射和语言读取方法，支持页面多语言展示。
+// 功能：提供语言读取和保存方法，支持页面根据当前语言切换文案
 const APP_LANGUAGE_KEY = 'appLanguage'
 
 export type LanguageCode = 'en' | 'zh'
 
+// 读取当前语言，默认英文
 export function getCurrentLanguage() : LanguageCode {
 	const storedLanguage = (uni.getStorageSync(APP_LANGUAGE_KEY) as string).trim()
 	if (storedLanguage == 'zh') {
@@ -12,6 +13,7 @@ export function getCurrentLanguage() : LanguageCode {
 	return 'en'
 }
 
+// 保存当前语言，页面 onShow 时会重新读取
 export function setCurrentLanguage(language : LanguageCode) {
 	uni.setStorageSync(APP_LANGUAGE_KEY, language)
 }

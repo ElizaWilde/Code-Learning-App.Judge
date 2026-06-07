@@ -1,3 +1,4 @@
+// 功能：管理题库 JSON 持久化，合并内置题库和后台维护题库，并提供题目查询、新增、修改、删除能力
 import fs from "node:fs";
 import path from "node:path";
 import { getDatabasePath } from "./db";
@@ -9,14 +10,23 @@ import {
   questCatalog
 } from "./judgeCatalog";
 
-type PersistedQuestPayload = Omit<QuestDefinition, never>;
+/**
+ * 题库 JSON 存储模块
+ * quests 保存后台新增或修改过的题目
+ * deletedIds 保存后台删除过的内置题目 ID
+ */
+//预留扩展空间:当前持久化结构和运行时题目结构一致，后续如有运行时字段可在这里Omit<QuestDefinition, xxx>排除
+type PersistedQuestPayload = QuestDefinition;
 type PersistedQuestStore = {
   quests?: Record<string, unknown>;
   deletedIds?: unknown[];
 };
 
+// 运行时生成的数据文件quests.json与SQLite 放在同一个数据目录：dirname(app.db)/quests.json，方便部署时整体迁移数据
+  //app.db 的路径由 db.ts选择
 const questStorePath = path.join(path.dirname(getDatabasePath()), "quests.json");
 
+// 对题目对象做深拷贝，避免外部调用者直接修改内存中的题库数据
 function cloneQuest(quest: QuestDefinition): QuestDefinition {
   return JSON.parse(JSON.stringify(quest)) as QuestDefinition;
 }
@@ -25,6 +35,7 @@ function isString(value: unknown): value is string {
   return typeof value === "string";
 }
 
+// 判断 Python 和 Java 两份代码模板是否都存在：返回true 代表合法的value，后续可以直接断言为 Record<JudgeLanguage, string> 使用
 function isStarterCodes(value: unknown): value is Record<JudgeLanguage, string> {
   return value != null
     && typeof value === "object"
@@ -32,6 +43,7 @@ function isStarterCodes(value: unknown): value is Record<JudgeLanguage, string> 
     && isString((value as Record<string, unknown>).java);
 }
 
+// 判题用例必须包含名称、输入和期望输出
 function isJudgeTestCase(value: unknown): value is JudgeTestCase {
   return value != null
     && typeof value === "object"
@@ -40,6 +52,7 @@ function isJudgeTestCase(value: unknown): value is JudgeTestCase {
     && Object.prototype.hasOwnProperty.call(value, "expected");
 }
 
+// 运行时校验题目完整结构，防止损坏的 JSON 进入判题流程
 function isQuestDefinition(value: unknown): value is QuestDefinition {
   return value != null
     && typeof value === "object"
@@ -64,10 +77,12 @@ function isQuestDefinition(value: unknown): value is QuestDefinition {
     && isString((value as Record<string, unknown>).referenceNote);
 }
 
+//持久化题目进入系统前统一标准化
 function normalizeQuest(value: PersistedQuestPayload): QuestDefinition {
   return cloneQuest(value);
 }
 
+// 启动时读取 quests.json，兼容旧格式和当前 { quests, deletedIds } 格式
 function loadPersistedQuestStore(): { quests: Record<string, QuestDefinition>; deletedIds: string[] } {
   try {
     if (!fs.existsSync(questStorePath)) {
@@ -108,6 +123,7 @@ function loadPersistedQuestStore(): { quests: Record<string, QuestDefinition>; d
   }
 }
 
+// 每次新增、修改或删除题目后，把内存状态写回 quests.json
 function persistQuestMap(): void {
   fs.mkdirSync(path.dirname(questStorePath), { recursive: true });
   fs.writeFileSync(questStorePath, JSON.stringify({
@@ -120,6 +136,7 @@ const loadedQuestStore = loadPersistedQuestStore();
 let persistedQuestMap: Record<string, QuestDefinition> = loadedQuestStore.quests;
 let deletedQuestIds = new Set<string>(loadedQuestStore.deletedIds);
 
+// 最终题库等于内置题库加后台覆盖题库，再移除后台删除标记
 function mergedQuestMap(): Record<string, QuestDefinition> {
   const merged = {
     ...questCatalog,
@@ -133,6 +150,7 @@ function mergedQuestMap(): Record<string, QuestDefinition> {
   return merged;
 }
 
+// 后台保存题目前先做完整校验，避免无效题目破坏用户端和判题端
 function validateQuestInput(candidate: unknown): { ok: true; quest: QuestDefinition } | { ok: false; message: string } {
   if (!isQuestDefinition(candidate)) {
     return {
@@ -154,14 +172,17 @@ function validateQuestInput(candidate: unknown): { ok: true; quest: QuestDefinit
   };
 }
 
+// 按 ID 获取完整题目，判题和题目详情页都会用到
 export function getQuestDefinition(questId: string): QuestDefinition | null {
   return mergedQuestMap()[questId] ?? null;
 }
 
+// 后台题库管理使用完整题目列表
 export function listQuestDefinitions(): QuestDefinition[] {
   return Object.values(mergedQuestMap());
 }
 
+// 用户端目录只需要摘要字段，避免把参考答案和隐藏测试用例暴露出去
 export function listQuestSummaries(): Array<{
   id: string;
   title: string;
@@ -182,6 +203,7 @@ export function listQuestSummaries(): Array<{
   }));
 }
 
+// 新增或更新题目，并解除同 ID 的删除标记
 export function upsertQuestDefinition(candidate: unknown): { ok: true; quest: QuestDefinition } | { ok: false; message: string } {
   const validated = validateQuestInput(candidate);
   if (!validated.ok) {
@@ -198,6 +220,7 @@ export function upsertQuestDefinition(candidate: unknown): { ok: true; quest: Qu
   };
 }
 
+// 删除题目时记录 deletedIds，内置题目不会改源码，只在合并题库时被隐藏
 export function deleteQuestDefinition(questId: string): { ok: true } | { ok: false; message: string } {
   const normalizedQuestId = questId.trim();
   if (normalizedQuestId.length === 0) {

@@ -1,4 +1,5 @@
 // 功能：Service Worker 缓存策略，实现静态资源离线缓存和请求回退。
+// 功能：Service Worker 缓存和通知点击处理，为 Web 端提供基础离线访问能力
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
   const targetUrl = event.notification.data && event.notification.data.url ? event.notification.data.url : '/';

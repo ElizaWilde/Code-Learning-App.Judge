@@ -1,4 +1,4 @@
-<!-- 功能：学习中心页，展示学习路径、模块进度和课程入口。 -->
+<!-- 功能：学习中心页，展示推荐学习路径和四个学习方向入口 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">
@@ -95,12 +95,14 @@
 	})
 
 	// Open the selected learning path as a normal detail page from the Study tab.
+	// 点击学习路径卡片后跳转到对应方向的学习路径页
 	const openPath = (url : string) => {
 		uni.navigateTo({
 			url,
 		})
 	}
 
+	// 页面重新显示时刷新语言，确保从其他页面切换语言后这里同步更新
 	onShow(() => {
 		currentLanguage.value = getCurrentLanguage()
 	})

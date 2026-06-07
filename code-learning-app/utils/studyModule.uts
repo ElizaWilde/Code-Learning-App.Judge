@@ -1,6 +1,7 @@
-// 功能：定义学习模块类型结构，统一学习模块数据字段约定。
+// 功能：保存当前选中的学习模块 ID，并统一跳转到学习模块详情页
 export const ACTIVE_STUDY_MODULE_KEY = 'activeStudyModule'
 
+// 学习路径页调用此函数，先保存模块 ID，再跳转到统一的模块详情页
 export function openStudyModule(moduleId : string) {
 	uni.setStorageSync(ACTIVE_STUDY_MODULE_KEY, moduleId)
 	uni.navigateTo({

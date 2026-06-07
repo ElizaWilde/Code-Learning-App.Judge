@@ -1,4 +1,4 @@
-<!-- 功能：任务页，管理每日学习任务、完成状态和任务进度反馈。 -->
+<!-- 功能：刷题任务页，展示算法题列表、完成状态，并跳转到统一刷题页面 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">
@@ -134,6 +134,7 @@
 			&& typeof value.description == 'string'
 	}
 
+	// 从本地存储读取每道题的 attempted/solved 状态
 	const loadStatuses = () => {
 		const allQuests = questGroups.value
 		allQuests.forEach((group) => {
@@ -179,6 +180,7 @@
 		applyQuestGroups(fallbackQuests)
 	}
 
+	// 优先从后端加载题目目录，失败时使用本地兜底题库
 	const loadQuestCatalog = () => {
 		uni.request({
 			url: getApiUrl('/api/judge/catalog'),
@@ -212,6 +214,7 @@
 		return (statusMap[questId] as string) || ''
 	}
 
+	// 打开刷题页前保存当前题目 ID
 	const openQuest = (questId: string) => {
 		uni.setStorageSync(ACTIVE_QUEST_KEY, questId)
 		uni.navigateTo({

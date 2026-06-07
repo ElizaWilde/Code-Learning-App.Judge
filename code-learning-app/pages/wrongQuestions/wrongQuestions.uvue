@@ -1,4 +1,4 @@
-<!-- 功能：错题本页，展示错题列表、筛选复习、查看解析和移除错题。 -->
+<!-- 功能：错题本页，按学习路径展示当前用户保存的错题和正确答案 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">
@@ -62,6 +62,7 @@
 		return copyMap[currentLanguage.value] || copyMap.en
 	})
 
+	// 从错题工具读取分组和总数，刷新页面展示
 	const loadWrongQuestionCollection = () => {
 		currentLanguage.value = getCurrentLanguage()
 		wrongQuestionGroups.value = getWrongQuestionGroups()

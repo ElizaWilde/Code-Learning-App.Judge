@@ -1,4 +1,4 @@
-<!-- 功能：社区帖子详情页，展示帖子内容、评论、点赞和收藏交互。 -->
+<!-- 功能：社区帖子详情页，展示帖子正文、标签和本地评论互动 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="post-card">
@@ -94,6 +94,7 @@
 		return copyMap[currentLanguage.value] || copyMap.en
 	})
 
+	// 根据本地保存的 activeCommunityPostId 加载帖子详情
 	const loadPost = () => {
 		const postId = getActiveCommunityPostId()
 		activePostId.value = postId
@@ -141,6 +142,7 @@
 		})
 	}
 
+	// 加载当前帖子的本地评论列表
 	const loadComments = () => {
 		if (activePostId.value.length == 0) {
 			comments.value = []
@@ -149,6 +151,7 @@
 		comments.value = getCommentsForPost(activePostId.value)
 	}
 
+	// 提交评论并刷新评论区
 	const submitComment = () => {
 		if (activePostId.value.length == 0) {
 			return

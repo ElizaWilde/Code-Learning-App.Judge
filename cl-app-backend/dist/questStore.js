@@ -8,23 +8,29 @@ exports.listQuestDefinitions = listQuestDefinitions;
 exports.listQuestSummaries = listQuestSummaries;
 exports.upsertQuestDefinition = upsertQuestDefinition;
 exports.deleteQuestDefinition = deleteQuestDefinition;
+// 功能：管理题库 JSON 持久化，合并内置题库和后台维护题库，并提供题目查询、新增、修改、删除能力
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const db_1 = require("./db");
 const judgeCatalog_1 = require("./judgeCatalog");
+// 运行时生成的数据文件quests.json与SQLite 放在同一个数据目录：dirname(app.db)/quests.json，方便部署时整体迁移数据
+//app.db 的路径由 db.ts选择
 const questStorePath = node_path_1.default.join(node_path_1.default.dirname((0, db_1.getDatabasePath)()), "quests.json");
+// 对题目对象做深拷贝，避免外部调用者直接修改内存中的题库数据
 function cloneQuest(quest) {
     return JSON.parse(JSON.stringify(quest));
 }
 function isString(value) {
     return typeof value === "string";
 }
+// 判断 Python 和 Java 两份代码模板是否都存在：返回true 代表合法的value，后续可以直接断言为 Record<JudgeLanguage, string> 使用
 function isStarterCodes(value) {
     return value != null
         && typeof value === "object"
         && isString(value.python)
         && isString(value.java);
 }
+// 判题用例必须包含名称、输入和期望输出
 function isJudgeTestCase(value) {
     return value != null
         && typeof value === "object"
@@ -32,6 +38,7 @@ function isJudgeTestCase(value) {
         && Object.prototype.hasOwnProperty.call(value, "input")
         && Object.prototype.hasOwnProperty.call(value, "expected");
 }
+// 运行时校验题目完整结构，防止损坏的 JSON 进入判题流程
 function isQuestDefinition(value) {
     return value != null
         && typeof value === "object"
@@ -55,9 +62,11 @@ function isQuestDefinition(value) {
         && isString(value.referenceTitle)
         && isString(value.referenceNote);
 }
+//持久化题目进入系统前统一标准化
 function normalizeQuest(value) {
     return cloneQuest(value);
 }
+// 启动时读取 quests.json，兼容旧格式和当前 { quests, deletedIds } 格式
 function loadPersistedQuestStore() {
     try {
         if (!node_fs_1.default.existsSync(questStorePath)) {
@@ -93,6 +102,7 @@ function loadPersistedQuestStore() {
         return { quests: {}, deletedIds: [] };
     }
 }
+// 每次新增、修改或删除题目后，把内存状态写回 quests.json
 function persistQuestMap() {
     node_fs_1.default.mkdirSync(node_path_1.default.dirname(questStorePath), { recursive: true });
     node_fs_1.default.writeFileSync(questStorePath, JSON.stringify({
@@ -103,6 +113,7 @@ function persistQuestMap() {
 const loadedQuestStore = loadPersistedQuestStore();
 let persistedQuestMap = loadedQuestStore.quests;
 let deletedQuestIds = new Set(loadedQuestStore.deletedIds);
+// 最终题库等于内置题库加后台覆盖题库，再移除后台删除标记
 function mergedQuestMap() {
     const merged = {
         ...judgeCatalog_1.questCatalog,
@@ -113,6 +124,7 @@ function mergedQuestMap() {
     });
     return merged;
 }
+// 后台保存题目前先做完整校验，避免无效题目破坏用户端和判题端
 function validateQuestInput(candidate) {
     if (!isQuestDefinition(candidate)) {
         return {
@@ -131,12 +143,15 @@ function validateQuestInput(candidate) {
         quest: normalizeQuest(candidate)
     };
 }
+// 按 ID 获取完整题目，判题和题目详情页都会用到
 function getQuestDefinition(questId) {
     return mergedQuestMap()[questId] ?? null;
 }
+// 后台题库管理使用完整题目列表
 function listQuestDefinitions() {
     return Object.values(mergedQuestMap());
 }
+// 用户端目录只需要摘要字段，避免把参考答案和隐藏测试用例暴露出去
 function listQuestSummaries() {
     return listQuestDefinitions().map((quest) => ({
         id: quest.id,
@@ -148,6 +163,7 @@ function listQuestSummaries() {
         description: quest.description
     }));
 }
+// 新增或更新题目，并解除同 ID 的删除标记
 function upsertQuestDefinition(candidate) {
     const validated = validateQuestInput(candidate);
     if (!validated.ok) {
@@ -161,6 +177,7 @@ function upsertQuestDefinition(candidate) {
         quest: cloneQuest(validated.quest)
     };
 }
+// 删除题目时记录 deletedIds，内置题目不会改源码，只在合并题库时被隐藏
 function deleteQuestDefinition(questId) {
     const normalizedQuestId = questId.trim();
     if (normalizedQuestId.length === 0) {

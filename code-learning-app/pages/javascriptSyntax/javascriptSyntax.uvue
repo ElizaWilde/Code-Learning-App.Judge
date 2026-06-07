@@ -1,4 +1,4 @@
-<!-- 功能：JavaScript 语法学习页，展示变量、类型、运算符和控制流知识。 -->
+<!-- 功能：JavaScript 语法学习页，展示变量、类型、数组对象和基础语法练习入口 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">

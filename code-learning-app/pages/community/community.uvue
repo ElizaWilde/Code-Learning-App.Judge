@@ -1,4 +1,4 @@
-<!-- 功能：社区列表页，展示学习帖子、分类筛选、搜索和发帖入口。 -->
+<!-- 功能：社区列表页，展示帖子列表、搜索结果、CSDN 热点兜底内容和发帖入口 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="search-sticky">
@@ -129,6 +129,7 @@
 		return value.trim().toLowerCase()
 	}
 
+	// 从本地社区工具加载帖子，并刷新列表数据
 	const loadCommunityPosts = () => {
 		uni.request({
 			url: getApiUrl('/api/community/posts'),
@@ -284,6 +285,7 @@
 		trendMeta.value = copy.value.hotTopicPrefix + '  ' + hottestTopic + '  ' + hottestCount + ' ' + copy.value.postCountSuffix
 	}
 
+	// 根据搜索词计算匹配分数并更新展示列表
 	const applySearch = () => {
 		const normalizedQuery = normalizeText(searchQuery.value)
 		if (normalizedQuery.length == 0) {
@@ -311,16 +313,19 @@
 		applySearch()
 	}
 
+	// 确认搜索时同时刷新 CSDN 热点兜底内容
 	const handleSearchConfirm = () => {
 		applySearch()
 	}
 
+	// 进入发帖页面
 	const goToCreatePost = () => {
 		uni.navigateTo({
 			url: '/pages/communityCreate/communityCreate',
 		})
 	}
 
+	// 打开帖子详情前保存当前帖子 ID
 	const openArticle = (postId : string) => {
 		setActiveCommunityPostId(postId)
 		uni.navigateTo({

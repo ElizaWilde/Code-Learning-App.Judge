@@ -1,3 +1,4 @@
+// 功能：提供社区帖子 API，包括公开帖子列表、投稿创建和后台审核状态更新
 import { Request, Response, Router } from "express";
 import { AuthedRequest, requireRole } from "./session";
 import {
@@ -21,18 +22,21 @@ type CommunityPostCreateBody = {
   author?: unknown;
 };
 
+// 审核状态只允许待审核、通过、拒绝三种值
 function isStatus(value: unknown): value is CommunityModerationStatus {
   return value === "pending" || value === "approved" || value === "rejected";
 }
 
 const router = Router();
 
+// 用户端社区列表只返回已审核通过的帖子
 router.get("/posts", (_req: Request, res: Response) => {
   return res.json({
     items: listApprovedCommunityPosts()
   });
 });
 
+// 用户端帖子详情同样只能读取已审核通过的内容
 router.get("/posts/:id", (req: Request, res: Response) => {
   const post = getApprovedCommunityPostById(String(req.params.id || ""));
 
@@ -47,6 +51,7 @@ router.get("/posts/:id", (req: Request, res: Response) => {
   });
 });
 
+// 用户投稿先进入审核队列，不会立即出现在公开社区列表
 router.post("/posts", (req: Request, res: Response) => {
   const body = (req.body ?? {}) as CommunityPostCreateBody;
   const result = createCommunityPostSubmission(
@@ -68,12 +73,14 @@ router.post("/posts", (req: Request, res: Response) => {
   });
 });
 
+// 管理员后台读取完整审核队列
 router.get("/admin/posts", requireRole(["admin"]), (_req: AuthedRequest, res: Response) => {
   return res.json({
     items: listCommunityModerationItems()
   });
 });
 
+// 管理员更新帖子审核状态和审核备注
 router.patch("/admin/posts/:id/status", requireRole(["admin"]), (req: AuthedRequest, res: Response) => {
   const itemId = String(req.params.id || "").trim();
   const body = (req.body ?? {}) as ModerationUpdateBody;

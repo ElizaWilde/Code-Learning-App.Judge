@@ -1,4 +1,4 @@
-<!-- 功能：学习提醒设置页，管理提醒时间、开关、重复规则和本地通知配置。 -->
+<!-- 功能：学习提醒设置页，管理每日练习提醒时间、开关和重复规则 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">

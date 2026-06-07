@@ -1,7 +1,8 @@
-// 功能：统一封装后端 API 基础地址和请求方法，供页面模块复用。
+// 功能：统一封装后端 API 基础地址和请求 URL 拼接方法
 const API_ORIGIN_OVERRIDE_KEY = 'apiOriginOverride'
 const PUBLIC_API_ORIGIN = 'http://127.0.0.1:8080'
 
+// 去掉地址末尾斜杠，避免拼接路径时出现双斜杠
 function trimTrailingSlash(value : string): string {
 	if (value.endsWith('/')) {
 		return value.substring(0, value.length - 1)
@@ -9,6 +10,7 @@ function trimTrailingSlash(value : string): string {
 	return value
 }
 
+// 获取当前 API 源地址，优先使用本地覆盖配置
 export function getApiOrigin() : string {
 	const storedOrigin = (uni.getStorageSync(API_ORIGIN_OVERRIDE_KEY) as string).trim()
 	if (storedOrigin.length > 0) {
@@ -22,6 +24,7 @@ export function getApiOrigin() : string {
 	return ''
 }
 
+// 把相对 API 路径拼接成完整请求地址
 export function getApiUrl(path : string) : string {
 	const normalizedPath = path.startsWith('/') ? path : '/' + path
 	const origin = getApiOrigin()

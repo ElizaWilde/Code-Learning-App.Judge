@@ -1,4 +1,4 @@
-<!-- 功能：JavaScript 函数学习页，讲解函数声明、参数、作用域和闭包基础。 -->
+<!-- 功能：JavaScript 函数学习页，展示函数、作用域和流程控制知识并进入对应练习 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">

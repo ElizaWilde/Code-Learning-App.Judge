@@ -1,4 +1,4 @@
-<!-- 功能：登录注册页，处理用户账号输入、身份切换、登录注册和本地会话保存。 -->
+<!-- 功能：登录注册页，处理用户账号输入、身份切换、登录注册和本地会话保存 -->
 <template>
 	<view class="page">
 		<view class="language-switch">
@@ -97,6 +97,7 @@
 		serverUnavailableError: string
 	}
 
+	// 登录成功后写入本地存储；其他页面用这些 key 判断用户、用户类型和 JWT
 	const LOGIN_USER_KEY = 'loggedInUser'
 	const LOGIN_USER_TYPE_KEY = 'loggedInUserType'
 	const AUTH_TOKEN_KEY = 'authToken'
@@ -157,7 +158,7 @@
 		submitting: false,
 	} as LoginForm)
 
-	// After auth succeeds, move into the tabBar entry page instead of stacking a normal page.
+	// 登录/注册成功后进入底部 Tab 的 Study 页面，这是普通用户主功能区入口
 	const openStudyTab = () => {
 		uni.switchTab({
 			url: '/pages/study/study',
@@ -169,7 +170,7 @@
 		setCurrentLanguage(language)
 	}
 
-	// Skip the auth screen when a username is already stored locally.
+	// 如果本地已有用户名，说明之前登录过，直接跳过登录页进入主功能区
 	onReady(() => {
 		const savedUsername = uni.getStorageSync(LOGIN_USER_KEY) as string
 		if (savedUsername.length > 0) {
@@ -177,17 +178,17 @@
 		}
 	})
 
-	// Keep the UI mode explicit so one screen can drive both register and login flows.
+	// 当前页面复用同一套表单，通过 isRegisterMode 区分登录和注册
 	const getAuthMode = (): AuthMode => {
 		return isRegisterMode.value ? 'register' : 'login'
 	}
 
-	// Build the backend route from the active screen mode.
+	// 根据当前模式拼接后端接口：/api/auth/login 或 /api/auth/register。
 	const getRequestUrl = (): string => {
 		return getApiUrl('/api/auth/' + getAuthMode())
 	}
 
-	// Store the current user locally and redirect into the main app shell.
+	// 后端认证成功会返回 JWT；这里把用户名、用户类型和 JWT 保存到本地，再跳转主功能区
 	const handleAuthSuccess = (username: string, userType: string, token: string) => {
 		form.submitting = false
 		uni.setStorageSync(LOGIN_USER_KEY, username)
@@ -201,18 +202,19 @@
 		openStudyTab()
 	}
 
-	// Flip between login/register without leaving stale password or error state behind.
+	// 切换登录/注册模式时清空密码和错误提示，避免旧输入影响下一次提交
 	const toggleMode = () => {
 		isRegisterMode.value = !isRegisterMode.value
 		form.errorMessage = ''
 		form.password = ''
 	}
 
-	// Submit the current credentials to the matching auth endpoint and map backend status codes to user-facing messages.
+	// 提交账号密码到当前模式对应的认证接口，并把后端状态码转换为页面提示
 	const submitAuthAction = () => {
 		const username = form.username.trim()
 		const password = form.password
 
+		// 前端先做基本非空校验，长度规则仍以后端校验为准
 		if (username.length == 0 || password.length == 0) {
 			form.errorMessage = copy.value.requiredError
 			return
@@ -225,6 +227,11 @@
 			password,
 		} as LoginRequestPayload
 
+		/*
+		  uni-app 用来和后端 API 通信的请求函数
+		  登录成功时，后端返回 data.token；现在这个 token 是 JWT
+		*/
+
 		uni.request({
 			url: getRequestUrl(),
 			method: 'POST',
@@ -234,7 +241,9 @@
 			},
 			data: payload,
 			success: (res) => {
+				//// 请求成功，处理后端返回结果
 				const data = res.data as any
+				// 登录返回 200，注册返回 201；两者成功后都走同一个本地保存和跳转流程
 				if ((res.statusCode == 200 || res.statusCode == 201) && data != null && data.user != null && typeof data.token == 'string') {
 					handleAuthSuccess(username, String(data.user.userType || 'normal'), data.token)
 					return
@@ -262,10 +271,12 @@
 				form.submitting = false
 			},
 			fail: () => {
+				//// 请求失败
 				form.errorMessage = copy.value.serverUnavailableError
 				form.submitting = false
 			},
 			complete: () => {
+				// // 无论成功失败都会执行
 				if (form.submitting) {
 					form.submitting = false
 				}

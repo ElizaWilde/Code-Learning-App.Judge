@@ -1,4 +1,4 @@
-// 功能：封装学习打卡数据的读取、更新和连续打卡统计逻辑。
+// 功能：管理学习打卡数据，提供今日打卡、连续天数和热力图统计
 const CHECK_IN_KEY_PREFIX = 'practiceCheckIn::'
 const LOGIN_USER_KEY = 'loggedInUser'
 
@@ -20,6 +20,7 @@ export type CheckInSummary = {
 	cells : HeatmapCell[]
 }
 
+// 打卡数据按用户名隔离，未登录时归入 guest
 function getCurrentUsername() : string {
 	const username = uni.getStorageSync(LOGIN_USER_KEY) as string
 	if (username.length > 0) {
@@ -65,6 +66,7 @@ function getLevel(count : number) : number {
 	return 4
 }
 
+// 记录今天完成过一次练习或刷题
 export function recordTodayCheckIn() {
 	const todayKey = formatDateKey(new Date())
 	const records = readCheckInRecords()
@@ -97,6 +99,7 @@ export function recordTodayCheckIn() {
 	uni.setStorageSync(getCheckInStorageKey(), nextRecords)
 }
 
+// 生成连续打卡天数、累计天数和最近 daySpan 天热力图数据
 export function getCheckInSummary(daySpan : number = 84) : CheckInSummary {
 	const records = readCheckInRecords()
 	const countsByDate = {} as UTSJSONObject

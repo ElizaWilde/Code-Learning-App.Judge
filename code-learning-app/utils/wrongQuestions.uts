@@ -1,4 +1,4 @@
-// 功能：管理错题本数据，封装错题保存、查询、更新和删除逻辑。
+// 功能：管理练习错题本，负责按用户保存错题、读取错题分组，并把错题数量同步到后端统计接口
 import { getApiUrl } from './api.uts'
 
 const WRONG_QUESTIONS_KEY_PREFIX = 'wrongQuestionCollection::'
@@ -35,6 +35,7 @@ const DEFAULT_PATH_GROUPS = [
 	{ pathId: 'ai-basics', pathTitle: 'AI Basic Knowledge' },
 ] as { pathId : string, pathTitle : string }[]
 
+// 从当前用户自己的本地存储中读取错题列表
 function readWrongQuestionItems() : WrongQuestionItem[] {
 	const storedValue = uni.getStorageSync(getWrongQuestionsStorageKey())
 	if (storedValue == null || storedValue == '') {
@@ -53,10 +54,12 @@ function getCurrentUsername() : string {
 	return 'guest'
 }
 
+// 错题本按用户名隔离，避免多个用户共用同一份错题数据
 function getWrongQuestionsStorageKey() : string {
 	return WRONG_QUESTIONS_KEY_PREFIX + getCurrentUsername()
 }
 
+// 把某个模块的错题数量同步到后端 analytics，用于后台学习数据看板
 function syncWrongAnswerSnapshot(
 	username : string,
 	pathId : string,
@@ -82,43 +85,53 @@ function syncWrongAnswerSnapshot(
 	})
 }
 
+// 保存一次练习提交中的错题，已存在的同题错题会被最新答案覆盖
 export function saveWrongQuestionsForModule(
 	pathId : string,
 	pathTitle : string,
 	moduleId : string,
 	moduleTitle : string,
 	questions : PracticeQuestion[],
-	answers : string[]
+	answers : string[],
+	wrongQuestionIds : string[] = [],
+	wrongAnswers : string[] = []
 ) {
 	const currentItems = readWrongQuestionItems()
-	const retainedItems = currentItems.filter((item) : boolean => item.moduleId != moduleId)
-	const nextItems = [...retainedItems] as WrongQuestionItem[]
-	let wrongCount = 0
+	const nextItems = [...currentItems] as WrongQuestionItem[]
 
 	for (let i = 0; i < questions.length; i++) {
 		const question = questions[i]
 		const selectedAnswer = answers[i]
-		if (selectedAnswer == question.correctAnswer) {
+		const wasWrongBefore = wrongQuestionIds.indexOf(question.id) >= 0
+		const savedWrongAnswer = i < wrongAnswers.length ? wrongAnswers[i] : ''
+		if (selectedAnswer == question.correctAnswer && !wasWrongBefore) {
 			continue
 		}
-		wrongCount += 1
 
-		nextItems.push({
+		const nextItem = {
 			pathId,
 			pathTitle,
 			moduleId,
 			moduleTitle,
 			questionId: question.id,
 			prompt: question.prompt,
-			selectedAnswer,
+			selectedAnswer: savedWrongAnswer.length > 0 ? savedWrongAnswer : selectedAnswer,
 			correctAnswer: question.correctAnswer,
-		})
+		} as WrongQuestionItem
+		const existingIndex = nextItems.findIndex((item) : boolean => item.moduleId == moduleId && item.questionId == question.id)
+		if (existingIndex >= 0) {
+			nextItems[existingIndex] = nextItem
+		} else {
+			nextItems.push(nextItem)
+		}
 	}
 
 	uni.setStorageSync(getWrongQuestionsStorageKey(), nextItems)
+	const wrongCount = nextItems.filter((item) : boolean => item.moduleId == moduleId).length
 	syncWrongAnswerSnapshot(getCurrentUsername(), pathId, pathTitle, moduleId, moduleTitle, wrongCount)
 }
 
+// 个人中心和错题本页面按学习路径分组展示错题
 export function getWrongQuestionGroups() : WrongQuestionGroup[] {
 	const items = readWrongQuestionItems()
 	const groups = [] as WrongQuestionGroup[]
@@ -134,6 +147,7 @@ export function getWrongQuestionGroups() : WrongQuestionGroup[] {
 	return groups
 }
 
+// 统计当前用户错题总数，用于个人中心摘要展示
 export function getTotalWrongQuestionCount() : number {
 	let total = 0
 	for (const group of getWrongQuestionGroups()) {

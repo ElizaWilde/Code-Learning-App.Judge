@@ -1,4 +1,4 @@
-<!-- 功能：学习模块详情页，展示章节内容、进度状态、练习入口和学习记录。 -->
+<!-- 功能：学习模块详情页，展示模块知识讲解、概念图、视频和练习入口 -->
 <template>
 	<scroll-view class="page" scroll-y="true">
 		<view class="hero">
@@ -22,6 +22,7 @@
 			<view class="media-block">
 				<text class="media-label">{{ copy.quickVideo }}</text>
 				<video
+					v-if="!isWebVideo"
 					class="lesson-video"
 					:src="currentModule.videoUrl"
 					:poster="currentModule.imageUrl"
@@ -29,6 +30,11 @@
 					show-center-play-btn
 					object-fit="cover"
 				></video>
+				<web-view
+					v-if="isWebVideo"
+					class="lesson-video web-video-frame"
+					:src="webVideoUrl"
+				></web-view>
 			</view>
 		</view>
 
@@ -38,9 +44,9 @@
 
 <script setup lang="uts">
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
+	import { getStudyModuleMedia, isWebVideoUrl, toWebVideoPlayerUrl } from '../../utils/studyMedia.uts'
 
 	const ACTIVE_STUDY_MODULE_KEY = 'activeStudyModule'
-
 	type StudyModuleDetail = {
 		id : string
 		pathLabel : string
@@ -54,7 +60,6 @@
 		practiceUrl : string
 	}
 
-	const DEFAULT_VIDEO_URL = 'https://www.w3schools.com/html/mov_bbb.mp4'
 	const currentLanguage = ref(getCurrentLanguage() as string)
 	const copyMap = {
 		en: {
@@ -63,6 +68,8 @@
 			conceptPicture: 'Concept picture',
 			quickVideo: 'Quick video',
 			practiceButton: 'Go To Practice',
+			openVideo: 'Open video',
+			playVideo: 'Play',
 		},
 		zh: {
 			sectionTag: '知识讲解',
@@ -70,17 +77,171 @@
 			conceptPicture: '概念配图',
 			quickVideo: '快速视频',
 			practiceButton: '前往练习',
+			openVideo: '打开视频',
+			playVideo: '播放',
 		},
 	}
 	const copy = computed(() => {
 		return copyMap[currentLanguage.value] || copyMap.en
 	})
 
-	const createImageUrl = (background : string, textColor : string, text : string) : string => {
-		return 'https://dummyimage.com/1200x720/' + background + '/' + textColor + '&text=' + text
+	const zhModuleCopyMap = {
+		'javascript-syntax': {
+			pathLabel: 'JavaScript 模块 1',
+			title: '语法与数据类型',
+			subtitle: '先掌握语言的基础构件，再进入更复杂的程序流程。',
+			copyOne: 'JavaScript 使用 let 和 const 保存值。常见数据类型包括 string、number、boolean、null、undefined、object 和 array。',
+			copyTwo: '数组用于保存有序数据，对象用于按键组织数据。大多数真实应用状态都离不开这两种结构。',
+			copyThree: '建议养成用 console.log 检查值、用 typeof 检查类型的习惯，这能帮助你更早判断数据形态。',
+		},
+		'javascript-functions': {
+			pathLabel: 'JavaScript 模块 2',
+			title: '函数与控制流',
+			subtitle: '学习如何做判断、重复执行操作，并把逻辑封装成可复用单元。',
+			copyOne: '函数可以复用逻辑，避免重复写相同步骤。参数负责传入输入，return 负责返回结果。',
+			copyTwo: '控制流通过 if、else、switch、for 和 while 决定代码执行路径，让程序能根据输入和数据条件响应。',
+			copyThree: '函数保持短小且职责清晰时，代码会更容易测试、阅读和调试。',
+		},
+		'javascript-async': {
+			pathLabel: 'JavaScript 模块 3',
+			title: '异步 JavaScript',
+			subtitle: '理解 JavaScript 如何等待数据，以及如何处理稍后才完成的任务。',
+			copyOne: '当任务需要时间时，例如获取 API 数据或等待用户输入，就会使用异步代码。JavaScript 用 Promise 表示未来才会得到的结果。',
+			copyTwo: 'async 和 await 让基于 Promise 的代码更易读，你可以像自上而下写同步代码那样编写异步流程。',
+			copyThree: '网络请求和远程服务并不保证成功，所以异步代码也需要用 try/catch 处理失败。',
+		},
+		'javascript-dom': {
+			pathLabel: 'JavaScript 模块 4',
+			title: 'DOM 与调试',
+			subtitle: '把 JavaScript 连接到界面，并学习检查和修复运行时问题。',
+			copyOne: 'DOM 是浏览器对网页的结构化表示。JavaScript 可以读取元素、更新内容，并监听点击、输入等用户事件。',
+			copyTwo: '调试就是找到逻辑或数据从哪里开始不符合预期。浏览器控制台和网络面板能显著提高定位速度。',
+			copyThree: '实用的调试流程是复现问题、逐步缩小范围，并用日志或开发者工具验证假设。',
+		},
+		'java-syntax': {
+			pathLabel: 'Java 模块 1',
+			title: 'Java 语法基础',
+			subtitle: '通过静态类型、方法、条件和循环建立 Java 编程信心。',
+			copyOne: 'Java 要求明确声明类型，这能让编译器在运行前发现一部分错误。',
+			copyTwo: '方法用于组织行为，条件和循环让程序能根据数据响应并安全地重复执行。',
+			copyThree: '扎实的语法基础很重要，因为后端系统通常依赖清晰、可预测的代码结构。',
+		},
+		'java-oop': {
+			pathLabel: 'Java 模块 2',
+			title: '面向对象编程',
+			subtitle: '理解类如何在大型系统中组织数据和行为。',
+			copyOne: '类定义对象的蓝图，构造方法负责创建带有初始状态的实例。',
+			copyTwo: '封装隐藏实现细节，继承复用行为，接口定义组件之间清晰的协作契约。',
+			copyThree: '这些模式常见于后端应用，因为它们能把复杂逻辑拆成更可维护的部分。',
+		},
+		'java-collections': {
+			pathLabel: 'Java 模块 3',
+			title: '集合与异常',
+			subtitle: '选择合适的数据结构，并在不破坏应用的前提下处理失败。',
+			copyOne: 'List 保留顺序，Set 去重，Map 按键保存值。选择合适集合会影响可读性和性能。',
+			copyTwo: '异常用于描述非法输入、资源缺失等异常情况。',
+			copyThree: '好的 Java 代码会在能恢复的位置捕获错误，在需要上层决策时让异常继续传播。',
+		},
+		'java-backend': {
+			pathLabel: 'Java 模块 4',
+			title: 'Java 后端应用',
+			subtitle: '把核心语言能力连接到 API、服务和分层架构。',
+			copyOne: 'Java 后端通常拆分 controller、service 和 repository，让每一层都有清晰职责。',
+			copyTwo: '这种结构更容易测试业务逻辑、替换实现，并在请求链路中追踪问题。',
+			copyThree: 'Java 基础越扎实，Spring 这类框架就越容易理解，而不是只觉得它很神奇。',
+		},
+		'postgres-fundamentals': {
+			pathLabel: 'PostgreSQL 与 Redis 模块 1',
+			title: 'PostgreSQL 基础',
+			subtitle: '学习关系型表如何可靠地存储结构化数据并回答查询。',
+			copyOne: 'PostgreSQL 用表、行和列组织信息，让数据拥有清晰的 schema。',
+			copyTwo: 'SQL 可以插入、过滤、排序和聚合数据，并且在应用变大后仍保持可读。',
+			copyThree: '几乎所有后端最终都需要可信的持久化存储，所以这里的基础非常关键。',
+		},
+		'postgres-relations': {
+			pathLabel: 'PostgreSQL 与 Redis 模块 2',
+			title: '关系与索引',
+			subtitle: '在数据增长时保持查询正确且快速。',
+			copyOne: '关系通过键连接表，让数据库能建模真实业务实体，而不是把所有信息塞进一张表。',
+			copyTwo: 'Join 可以合并相关记录，索引能加快经常被查询字段的查找速度。',
+			copyThree: '索引是一种取舍：读取通常更快，但写入通常会付出一点额外成本。',
+		},
+		'redis-basics': {
+			pathLabel: 'PostgreSQL 与 Redis 模块 3',
+			title: 'Redis 基础',
+			subtitle: '使用高速内存结构处理缓存、计数器和短生命周期状态。',
+			copyOne: 'Redis 把数据放在内存中，所以读写通常比访问关系型数据库快得多。',
+			copyTwo: '常见结构包括 string、hash、set 和 list。过期时间非常适合缓存和临时会话。',
+			copyThree: 'Redis 适合低延迟场景，但仍需要设计缓存数据何时刷新或失效。',
+		},
+		'postgres-redis': {
+			pathLabel: 'PostgreSQL 与 Redis 模块 4',
+			title: 'PostgreSQL 与 Redis 协同',
+			subtitle: '结合持久化存储和缓存，提高应用响应速度。',
+			copyOne: '常见模式是把真实数据保存在 PostgreSQL，把高频读取结果放进 Redis。',
+			copyTwo: '这样可以减少重复数据库工作，并改善读多写少功能的响应时间。',
+			copyThree: '核心设计问题是缓存失效：应用需要规则决定 Redis 何时刷新或丢弃旧值。',
+		},
+		'ai-basics': {
+			pathLabel: 'AI 基础知识模块 1',
+			title: 'AI 与机器学习基础',
+			subtitle: '在使用现代 AI 产品前，先理解背后的核心术语。',
+			copyOne: '人工智能是更大的领域，机器学习关注的是从数据中学习模式的系统。',
+			copyTwo: '训练让模型从样本中学习，推理则是训练后的模型为新输入生成输出的过程。',
+			copyThree: '理解这个区别能帮助你判断 AI 工具真正能做什么，以及哪些只是营销表述。',
+		},
+		'llm-workings': {
+			pathLabel: 'AI 基础知识模块 2',
+			title: '大语言模型如何工作',
+			subtitle: '学习 token、上下文窗口和补全在实际使用中的含义。',
+			copyOne: '大语言模型会根据从大量训练语料中学到的模式预测下一个 token。',
+			copyTwo: '上下文窗口限制模型一次能考虑多少信息，这会直接影响提示词设计。',
+			copyThree: '理解这些机制后，长对话和复杂任务中的模型限制会更容易预判。',
+		},
+		'prompting-eval': {
+			pathLabel: 'AI 基础知识模块 3',
+			title: '提示词与评估',
+			subtitle: '写出更清晰的提示词，并更有纪律地判断输出质量。',
+			copyOne: '好的提示词会提供足够上下文，明确任务，并说明期望的输出形式。',
+			copyTwo: '评估意味着检查输出是否正确、完整、安全，并且符合你的目标。',
+			copyThree: '提示词会在迭代中变好：测试、观察失败，再收紧指令。',
+		},
+		'ai-safety': {
+			pathLabel: 'AI 基础知识模块 4',
+			title: '安全与实践流程',
+			subtitle: '高效使用 AI，同时关注可靠性、隐私和人工审查。',
+			copyOne: 'AI 输出可能听起来很自信但仍然错误，所以代码、研究和业务决策都需要复核。',
+			copyTwo: '除非流程和政策明确允许，否则不要把敏感信息粘贴到 AI 工具中。',
+			copyThree: '实用工作流会结合提示、验证和人工判断，而不是默认模型永远正确。',
+		},
+	} as any
+
+	const localizeModule = (module : StudyModuleDetail) : StudyModuleDetail => {
+		if (currentLanguage.value != 'zh') {
+			return module
+		}
+
+		const zhCopy = zhModuleCopyMap[module.id]
+		if (zhCopy == null) {
+			return module
+		}
+
+		return {
+			id: module.id,
+			pathLabel: zhCopy.pathLabel,
+			title: zhCopy.title,
+			subtitle: zhCopy.subtitle,
+			copyOne: zhCopy.copyOne,
+			copyTwo: zhCopy.copyTwo,
+			copyThree: zhCopy.copyThree,
+			imageUrl: module.imageUrl,
+			videoUrl: module.videoUrl,
+			practiceUrl: module.practiceUrl,
+		}
 	}
 
 	const fallbackModule = () : StudyModuleDetail => {
+		const media = getStudyModuleMedia('javascript-syntax')
 		return {
 			id: 'javascript-syntax',
 			pathLabel: 'JavaScript Module 1',
@@ -89,8 +250,8 @@
 			copyOne: 'JavaScript stores values in variables using let and const. Common data types include string, number, boolean, null, undefined, object, and array.',
 			copyTwo: 'Arrays keep ordered values, while objects group data by key. Understanding these two structures is essential because most real application state is built from them.',
 			copyThree: 'A good first habit is to inspect values with console.log and check types using typeof so you can reason about data shape early.',
-			imageUrl: createImageUrl('0d7695', 'ffffff', 'JavaScript+Syntax'),
-			videoUrl: DEFAULT_VIDEO_URL,
+			imageUrl: media.imageUrl,
+			videoUrl: media.videoUrl,
 			practiceUrl: '/pages/javascriptSyntaxPractice/javascriptSyntaxPractice',
 		}
 	}
@@ -100,6 +261,7 @@
 			case 'javascript-syntax':
 				return fallbackModule()
 			case 'javascript-functions':
+				const javascriptFunctionsMedia = getStudyModuleMedia('javascript-functions')
 				return {
 					id: 'javascript-functions',
 					pathLabel: 'JavaScript Module 2',
@@ -108,11 +270,12 @@
 					copyOne: 'Functions let you reuse logic instead of rewriting the same steps. Parameters pass input into a function and return sends a result back.',
 					copyTwo: 'Control flow decides what code runs using if, else, switch, for, and while. These tools make programs react to user input and data conditions.',
 					copyThree: 'When functions stay small and focused, code becomes easier to test and debug.',
-					imageUrl: createImageUrl('156784', 'ffffff', 'Functions+and+Control+Flow'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: javascriptFunctionsMedia.imageUrl,
+					videoUrl: javascriptFunctionsMedia.videoUrl,
 					practiceUrl: '/pages/javascriptFunctionsPractice/javascriptFunctionsPractice',
 				}
 			case 'javascript-async':
+				const javascriptAsyncMedia = getStudyModuleMedia('javascript-async')
 				return {
 					id: 'javascript-async',
 					pathLabel: 'JavaScript Module 3',
@@ -121,11 +284,12 @@
 					copyOne: 'Asynchronous code is used when a task takes time, such as fetching API data or waiting for user input. JavaScript uses promises to represent future results.',
 					copyTwo: 'Async and await make promise-based code easier to read by letting you write it in a top-to-bottom style.',
 					copyThree: 'You should also handle failure with try/catch, because network requests and remote services are not guaranteed to succeed.',
-					imageUrl: createImageUrl('245f73', 'ffffff', 'Async+JavaScript'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: javascriptAsyncMedia.imageUrl,
+					videoUrl: javascriptAsyncMedia.videoUrl,
 					practiceUrl: '/pages/javascriptAsyncPractice/javascriptAsyncPractice',
 				}
 			case 'javascript-dom':
+				const javascriptDomMedia = getStudyModuleMedia('javascript-dom')
 				return {
 					id: 'javascript-dom',
 					pathLabel: 'JavaScript Module 4',
@@ -134,11 +298,12 @@
 					copyOne: 'The DOM is the browser representation of a web page. JavaScript can read elements, update content, and listen for user events like clicks and typing.',
 					copyTwo: 'Debugging means finding the exact place where logic or data stopped matching your expectation. The browser console and network tools make this much faster.',
 					copyThree: 'A practical debugging workflow is to reproduce the bug, isolate one variable at a time, and verify assumptions with logs or devtools.',
-					imageUrl: createImageUrl('355b7a', 'ffffff', 'DOM+and+Debugging'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: javascriptDomMedia.imageUrl,
+					videoUrl: javascriptDomMedia.videoUrl,
 					practiceUrl: '/pages/javascriptDomPractice/javascriptDomPractice',
 				}
 			case 'java-syntax':
+				const javaSyntaxMedia = getStudyModuleMedia('java-syntax')
 				return {
 					id: 'java-syntax',
 					pathLabel: 'Java Module 1',
@@ -147,11 +312,12 @@
 					copyOne: 'Java requires you to declare types clearly, which helps the compiler catch mistakes before runtime.',
 					copyTwo: 'Methods group behavior, while conditionals and loops let the program react to data and repeat work safely.',
 					copyThree: 'A strong syntax foundation matters in Java because backend systems often depend on readable, predictable structure.',
-					imageUrl: createImageUrl('f4af31', '42230c', 'Java+Syntax+Fundamentals'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: javaSyntaxMedia.imageUrl,
+					videoUrl: javaSyntaxMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'java-oop':
+				const javaOopMedia = getStudyModuleMedia('java-oop')
 				return {
 					id: 'java-oop',
 					pathLabel: 'Java Module 2',
@@ -160,11 +326,12 @@
 					copyOne: 'Classes define blueprints for objects, and constructors create instances with an initial state.',
 					copyTwo: 'Encapsulation hides implementation details, inheritance reuses behavior, and interfaces define clean contracts between components.',
 					copyThree: 'These patterns are common in backend apps because they help split complex logic into maintainable pieces.',
-					imageUrl: createImageUrl('eb8e65', '42230c', 'Java+OOP'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: javaOopMedia.imageUrl,
+					videoUrl: javaOopMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'java-collections':
+				const javaCollectionsMedia = getStudyModuleMedia('java-collections')
 				return {
 					id: 'java-collections',
 					pathLabel: 'Java Module 3',
@@ -173,11 +340,12 @@
 					copyOne: 'Lists preserve order, sets remove duplicates, and maps store values by key. Picking the right collection affects both readability and performance.',
 					copyTwo: 'Exceptions describe abnormal conditions such as invalid input or missing resources.',
 					copyThree: 'Good Java code catches errors where it can recover, and lets exceptions propagate when a higher layer should decide what to do.',
-					imageUrl: createImageUrl('d97706', 'ffffff', 'Collections+and+Exceptions'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: javaCollectionsMedia.imageUrl,
+					videoUrl: javaCollectionsMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'java-backend':
+				const javaBackendMedia = getStudyModuleMedia('java-backend')
 				return {
 					id: 'java-backend',
 					pathLabel: 'Java Module 4',
@@ -186,11 +354,12 @@
 					copyOne: 'Backend Java usually separates controllers, services, and repositories so each layer has a clear responsibility.',
 					copyTwo: 'This structure makes it easier to test logic, swap implementations, and trace bugs across requests.',
 					copyThree: 'When Java fundamentals are strong, frameworks like Spring feel much more intuitive instead of magical.',
-					imageUrl: createImageUrl('b45309', 'ffffff', 'Java+Backend+Apps'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: javaBackendMedia.imageUrl,
+					videoUrl: javaBackendMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'postgres-fundamentals':
+				const postgresFundamentalsMedia = getStudyModuleMedia('postgres-fundamentals')
 				return {
 					id: 'postgres-fundamentals',
 					pathLabel: 'PostgreSQL and Redis Module 1',
@@ -199,11 +368,12 @@
 					copyOne: 'PostgreSQL organizes information into tables with rows and columns, which gives data a clear schema.',
 					copyTwo: 'SQL lets you insert, filter, sort, and aggregate data in a way that stays readable as your app grows.',
 					copyThree: 'Strong fundamentals here matter because almost every backend eventually needs trustworthy persistent storage.',
-					imageUrl: createImageUrl('1d4ed8', 'ffffff', 'PostgreSQL+Fundamentals'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: postgresFundamentalsMedia.imageUrl,
+					videoUrl: postgresFundamentalsMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'postgres-relations':
+				const postgresRelationsMedia = getStudyModuleMedia('postgres-relations')
 				return {
 					id: 'postgres-relations',
 					pathLabel: 'PostgreSQL and Redis Module 2',
@@ -212,11 +382,12 @@
 					copyOne: 'Relations connect tables through keys so the database can model real business entities instead of storing everything in one place.',
 					copyTwo: 'Joins combine related records, while indexes speed up lookups on columns that are queried frequently.',
 					copyThree: 'Indexing is a tradeoff because reads become faster but writes usually cost a bit more.',
-					imageUrl: createImageUrl('2563eb', 'ffffff', 'Relations+and+Indexes'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: postgresRelationsMedia.imageUrl,
+					videoUrl: postgresRelationsMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'redis-basics':
+				const redisBasicsMedia = getStudyModuleMedia('redis-basics')
 				return {
 					id: 'redis-basics',
 					pathLabel: 'PostgreSQL and Redis Module 3',
@@ -225,11 +396,12 @@
 					copyOne: 'Redis stores data in memory, so read and write operations are usually much faster than hitting a relational database.',
 					copyTwo: 'Common structures include strings, hashes, sets, and lists. Expiration times are especially useful for cache entries and temporary sessions.',
 					copyThree: 'Redis is powerful when low latency matters, but you still need a strategy for what happens when cached data becomes stale.',
-					imageUrl: createImageUrl('dc2626', 'ffffff', 'Redis+Basics'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: redisBasicsMedia.imageUrl,
+					videoUrl: redisBasicsMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'postgres-redis':
+				const postgresRedisMedia = getStudyModuleMedia('postgres-redis')
 				return {
 					id: 'postgres-redis',
 					pathLabel: 'PostgreSQL and Redis Module 4',
@@ -238,11 +410,12 @@
 					copyOne: 'A common pattern is to keep source-of-truth data in PostgreSQL and place frequently accessed results in Redis.',
 					copyTwo: 'This reduces repeated database work and improves response time for read-heavy features.',
 					copyThree: 'The key design question is cache invalidation: your app needs a rule for when Redis should refresh or discard old values.',
-					imageUrl: createImageUrl('0f766e', 'ffffff', 'PostgreSQL+Plus+Redis'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: postgresRedisMedia.imageUrl,
+					videoUrl: postgresRedisMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'ai-basics':
+				const aiBasicsMedia = getStudyModuleMedia('ai-basics')
 				return {
 					id: 'ai-basics',
 					pathLabel: 'AI Basic Knowledge Module 1',
@@ -251,11 +424,12 @@
 					copyOne: 'Artificial intelligence is the broad field, while machine learning focuses on systems that learn patterns from data.',
 					copyTwo: 'Training teaches a model from examples, and inference is the step where the trained model produces outputs for new inputs.',
 					copyThree: 'Knowing this distinction helps you evaluate what an AI tool can actually do versus what marketing language suggests.',
-					imageUrl: createImageUrl('6a5cff', 'ffffff', 'AI+and+ML+Basics'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: aiBasicsMedia.imageUrl,
+					videoUrl: aiBasicsMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'llm-workings':
+				const llmWorkingsMedia = getStudyModuleMedia('llm-workings')
 				return {
 					id: 'llm-workings',
 					pathLabel: 'AI Basic Knowledge Module 2',
@@ -264,11 +438,12 @@
 					copyOne: 'Large language models predict the next token based on patterns learned from a massive training corpus.',
 					copyTwo: 'A context window limits how much information the model can consider at once, which directly affects prompt design.',
 					copyThree: 'Understanding these mechanics makes model limits easier to anticipate, especially around long conversations and detailed instructions.',
-					imageUrl: createImageUrl('7c3aed', 'ffffff', 'How+LLMs+Work'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: llmWorkingsMedia.imageUrl,
+					videoUrl: llmWorkingsMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'prompting-eval':
+				const promptingEvalMedia = getStudyModuleMedia('prompting-eval')
 				return {
 					id: 'prompting-eval',
 					pathLabel: 'AI Basic Knowledge Module 3',
@@ -277,11 +452,12 @@
 					copyOne: 'A strong prompt gives the model enough context, defines the task clearly, and sets the expected output shape.',
 					copyTwo: 'Evaluation means checking whether the output is correct, complete, safe, and consistent with your goal.',
 					copyThree: 'Prompting gets better when you treat it like iteration: test, inspect failures, then tighten the instructions.',
-					imageUrl: createImageUrl('8b5cf6', 'ffffff', 'Prompting+and+Evaluation'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: promptingEvalMedia.imageUrl,
+					videoUrl: promptingEvalMedia.videoUrl,
 					practiceUrl: '',
 				}
 			case 'ai-safety':
+				const aiSafetyMedia = getStudyModuleMedia('ai-safety')
 				return {
 					id: 'ai-safety',
 					pathLabel: 'AI Basic Knowledge Module 4',
@@ -290,8 +466,8 @@
 					copyOne: 'AI outputs can sound confident while still being wrong, so review remains necessary for code, research, and business decisions.',
 					copyTwo: 'You should avoid pasting sensitive information into tools unless the workflow and policy explicitly allow it.',
 					copyThree: 'Practical workflows combine prompting, verification, and human judgment instead of assuming the model is always correct.',
-					imageUrl: createImageUrl('a78bfa', 'ffffff', 'AI+Safety+and+Workflows'),
-					videoUrl: DEFAULT_VIDEO_URL,
+					imageUrl: aiSafetyMedia.imageUrl,
+					videoUrl: aiSafetyMedia.videoUrl,
 					practiceUrl: '',
 				}
 			default:
@@ -299,21 +475,36 @@
 		}
 	}
 
+	const currentModuleId = ref('javascript-syntax')
 	const currentModule = ref(fallbackModule())
+	const isWebVideo = computed(() : boolean => {
+		return isWebVideoUrl(currentModule.value.videoUrl)
+	})
+	const webVideoUrl = computed(() : string => {
+		return toWebVideoPlayerUrl(currentModule.value.videoUrl)
+	})
 
+	// 进入详情页时读取 activeStudyModule，决定当前展示哪个模块内容
 	onLoad(() => {
 		currentLanguage.value = getCurrentLanguage()
 		const moduleId = uni.getStorageSync(ACTIVE_STUDY_MODULE_KEY) as string
-		currentModule.value = getStudyModule(moduleId)
+		currentModuleId.value = moduleId
+		currentModule.value = localizeModule(getStudyModule(currentModuleId.value))
 		uni.setNavigationBarTitle({
 			title: currentModule.value.title,
 		})
 	})
 
+	// 页面显示时刷新语言和导航栏标题
 	onShow(() => {
 		currentLanguage.value = getCurrentLanguage()
+		currentModule.value = localizeModule(getStudyModule(currentModuleId.value))
+		uni.setNavigationBarTitle({
+			title: currentModule.value.title,
+		})
 	})
 
+	// 有练习页的模块会显示练习按钮，点击后进入对应练习页
 	const openPractice = () => {
 		if (currentModule.value.practiceUrl.length == 0) {
 			return
@@ -323,6 +514,7 @@
 			url: currentModule.value.practiceUrl,
 		})
 	}
+
 </script>
 
 <style>
@@ -409,6 +601,51 @@
 		margin-top: 10px;
 		border-radius: 16px;
 		background-color: rgba(12, 27, 43, 0.18);
+	}
+
+	.web-video-card {
+		position: relative;
+		width: 100%;
+		height: 196px;
+		margin-top: 10px;
+		border-radius: 16px;
+		overflow: hidden;
+		background-color: rgba(12, 27, 43, 0.18);
+	}
+
+	.web-video-poster {
+		width: 100%;
+		height: 196px;
+	}
+
+	.web-video-overlay {
+		position: absolute;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 196px;
+		align-items: center;
+		justify-content: center;
+		background-color: rgba(0, 0, 0, 0.28);
+	}
+
+	.web-video-play {
+		width: 54px;
+		height: 54px;
+		border-radius: 27px;
+		text-align: center;
+		line-height: 54px;
+		background-color: rgba(255, 255, 255, 0.92);
+		color: #16394b;
+		font-size: 14px;
+		font-weight: 700;
+	}
+
+	.web-video-text {
+		margin-top: 10px;
+		color: #ffffff;
+		font-size: 14px;
+		font-weight: 700;
 	}
 
 	.practice-button {

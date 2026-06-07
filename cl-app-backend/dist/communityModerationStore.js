@@ -8,11 +8,14 @@ exports.listApprovedCommunityPosts = listApprovedCommunityPosts;
 exports.getApprovedCommunityPostById = getApprovedCommunityPostById;
 exports.createCommunityPostSubmission = createCommunityPostSubmission;
 exports.updateCommunityModerationStatus = updateCommunityModerationStatus;
+// 功能：管理社区投稿审核 JSON 持久化，提供投稿创建、审核状态更新和已通过帖子查询能力
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
 const db_1 = require("./db");
 const db_2 = require("./db");
+// 和 SQLite 放在同一个数据目录，便于本地数据统一管理
 const moderationStorePath = node_path_1.default.join(node_path_1.default.dirname((0, db_1.getDatabasePath)()), "community-moderation.json");
+// 没有 JSON 文件时使用默认数据，让社区和后台审核页初次启动也有内容
 const defaultItems = [
     {
         id: "weekly-showcase",
@@ -23,8 +26,7 @@ const defaultItems = [
         tags: ["frontend", "ui", "design", "project"],
         submittedAt: "2026-05-18T09:00:00.000Z",
         status: "approved",
-        moderationNote: "Seeded official showcase thread.",
-        reportCount: 0
+        moderationNote: "Seeded official showcase thread."
     },
     {
         id: "backend-review",
@@ -35,8 +37,7 @@ const defaultItems = [
         tags: ["backend", "api", "database", "review"],
         submittedAt: "2026-05-20T13:30:00.000Z",
         status: "pending",
-        moderationNote: "",
-        reportCount: 2
+        moderationNote: ""
     },
     {
         id: "ship-first-app",
@@ -47,19 +48,20 @@ const defaultItems = [
         tags: ["app", "project", "deploy", "shipping"],
         submittedAt: "2026-05-21T08:15:00.000Z",
         status: "pending",
-        moderationNote: "",
-        reportCount: 1
+        moderationNote: ""
     }
 ];
 function isString(value) {
     return typeof value === "string";
 }
+// 审核状态只允许三种固定值
 function isStatus(value) {
     return value === "pending" || value === "approved" || value === "rejected";
 }
 function isStringArray(value) {
     return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
+// 读取 JSON 时做结构校验，过滤掉损坏或字段缺失的投稿记录
 function isCommunityModerationItem(value) {
     return value != null
         && typeof value === "object"
@@ -71,12 +73,23 @@ function isCommunityModerationItem(value) {
         && isStringArray(value.tags)
         && isString(value.submittedAt)
         && isStatus(value.status)
-        && isString(value.moderationNote)
-        && typeof value.reportCount === "number";
+        && isString(value.moderationNote);
 }
+// 返回副本，避免调用方直接修改内存中的审核队列
 function cloneItem(item) {
-    return JSON.parse(JSON.stringify(item));
+    return {
+        id: item.id,
+        title: item.title,
+        summary: item.summary,
+        content: item.content,
+        author: item.author,
+        tags: [...item.tags],
+        submittedAt: item.submittedAt,
+        status: item.status,
+        moderationNote: item.moderationNote
+    };
 }
+// 自动生成帖子摘要，社区列表页不需要展示完整正文
 function createSummary(content) {
     const trimmed = content.trim();
     if (trimmed.length <= 110) {
@@ -84,6 +97,7 @@ function createSummary(content) {
     }
     return `${trimmed.substring(0, 110)}...`;
 }
+// 审核通过的内部记录转换成前端社区页可展示的公开帖子结构
 function toPublicPost(item) {
     const authorRecord = (0, db_2.findUserByUsername)(item.author);
     return {
@@ -98,6 +112,7 @@ function toPublicPost(item) {
         authorType: authorRecord?.user_type ?? "normal"
     };
 }
+// 启动时读取 community-moderation.json，兼容数组旧格式和 { items } 新格式
 function loadStore() {
     try {
         if (!node_fs_1.default.existsSync(moderationStorePath)) {
@@ -117,27 +132,32 @@ function loadStore() {
         return defaultItems.map(cloneItem);
     }
 }
+// 每次投稿或审核状态变化后，把审核队列写回 JSON 文件
 function persistStore() {
     node_fs_1.default.mkdirSync(node_path_1.default.dirname(moderationStorePath), { recursive: true });
     node_fs_1.default.writeFileSync(moderationStorePath, JSON.stringify({ items: moderationItems }, null, 2), "utf8");
 }
 let moderationItems = loadStore();
+// 后台审核页查看完整审核队列，按提交时间倒序排列
 function listCommunityModerationItems() {
     return moderationItems
         .map(cloneItem)
         .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
 }
+// 用户端社区列表只展示已通过审核的帖子
 function listApprovedCommunityPosts() {
     return moderationItems
         .filter((item) => item.status === "approved")
         .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt))
         .map((item) => toPublicPost(cloneItem(item)));
 }
+// 帖子详情页同样只允许读取已通过审核的帖子
 function getApprovedCommunityPostById(postId) {
     const normalizedId = postId.trim();
     const item = moderationItems.find((entry) => entry.id === normalizedId && entry.status === "approved");
     return item ? toPublicPost(cloneItem(item)) : null;
 }
+// 用户投稿先进入 pending 状态，等待管理员在后台审核
 function createCommunityPostSubmission(title, content, tags, author) {
     const normalizedTitle = title.trim();
     const normalizedContent = content.trim();
@@ -161,8 +181,7 @@ function createCommunityPostSubmission(title, content, tags, author) {
         tags: normalizedTags,
         submittedAt: now.toISOString(),
         status: "pending",
-        moderationNote: "",
-        reportCount: 0
+        moderationNote: ""
     };
     moderationItems = [item, ...moderationItems];
     persistStore();
@@ -171,6 +190,7 @@ function createCommunityPostSubmission(title, content, tags, author) {
         item: cloneItem(item)
     };
 }
+// 管理员更新审核状态和审核备注，保存后会影响用户端是否可见
 function updateCommunityModerationStatus(itemId, status, moderationNote) {
     const normalizedId = itemId.trim();
     if (normalizedId.length === 0) {
