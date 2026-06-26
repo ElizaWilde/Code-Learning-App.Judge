@@ -12,12 +12,14 @@ const router = (0, express_1.Router)();
 function isJudgeLanguage(value) {
     return value === "python" || value === "java";
 }
+// 后台题库管理接口：返回完整题目，包括参考答案和隐藏测试
 router.get("/quests", (0, session_1.requireRole)(["admin", "question_manager"]), (_req, res) => {
     return res.json({
         items: (0, questStore_1.listQuestDefinitions)(),
         total: (0, questStore_1.listQuestDefinitions)().length
     });
 });
+// 后台新建题目，只有 admin 和 question_manager 可以调用
 router.post("/admin/quests", (0, session_1.requireRole)(["admin", "question_manager"]), (req, res) => {
     const result = (0, questStore_1.upsertQuestDefinition)(req.body ?? {});
     if (!result.ok) {
@@ -29,6 +31,7 @@ router.post("/admin/quests", (0, session_1.requireRole)(["admin", "question_mana
         quest: result.quest
     });
 });
+// 后台更新题目，路径 id 优先覆盖请求体 id，避免编辑错题目
 router.put("/admin/quests/:id", (0, session_1.requireRole)(["admin", "question_manager"]), (req, res) => {
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const payload = {
@@ -45,6 +48,7 @@ router.put("/admin/quests/:id", (0, session_1.requireRole)(["admin", "question_m
         quest: result.quest
     });
 });
+// 后台删除题目；内置题目会写入 deletedIds，后台新增题目会从 JSON 中移除
 router.delete("/admin/quests/:id", (0, session_1.requireRole)(["admin", "question_manager"]), (req, res) => {
     const questId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const result = (0, questStore_1.deleteQuestDefinition)(questId);
@@ -58,20 +62,24 @@ router.delete("/admin/quests/:id", (0, session_1.requireRole)(["admin", "questio
         questId
     });
 });
+// 用户端题目目录接口：只返回摘要，不暴露参考答案和隐藏测试
 router.get("/catalog", (_req, res) => {
     return res.json({
         items: (0, questStore_1.listQuestSummaries)(),
         total: (0, questStore_1.listQuestSummaries)().length
     });
 });
+// 后台读取判题配置，供评测系统维护页回填表单
 router.get("/admin/config", (0, session_1.requireRole)(["admin", "judge_manager"]), (_req, res) => {
     return res.json((0, judgeAdmin_1.getJudgeSystemConfig)());
 });
+// 后台保存判题配置，保存后会影响后续判题任务
 router.post("/admin/config", (0, session_1.requireRole)(["admin", "judge_manager"]), (req, res) => {
     return res.json({
         config: (0, judgeAdmin_1.updateJudgeSystemConfig)(req.body ?? {})
     });
 });
+// 后台读取实时队列快照，用于轮询展示排队和运行状态
 router.get("/admin/queue", (0, session_1.requireRole)(["admin", "judge_manager"]), (_req, res) => {
     return res.json((0, judgeAdmin_1.getJudgeQueueSnapshot)());
 });
@@ -88,11 +96,13 @@ router.get("/quest/:id", (req, res) => {
 // run 和 submit 共用同一套请求校验、排队执行、结果记录逻辑
 async function handleJudge(req, res, mode) {
     const body = (req.body ?? {});
+    // 1.run/submit 都必须提供题目 ID、语言和代码，语言必须在判题目录支持范围内
     if (typeof body.questId !== "string" || typeof body.code !== "string" || !isJudgeLanguage(body.language)) {
         return res.status(400).json({
             message: "questId, language, and code are required"
         });
     }
+    // 2.先确认题目存在，再进入队列，避免无效请求占用判题资源
     const quest = (0, questStore_1.getQuestDefinition)(body.questId);
     if (!quest) {
         return res.status(404).json({
@@ -100,13 +110,19 @@ async function handleJudge(req, res, mode) {
         });
     }
     try {
+        // 3.把任务交给 enqueueJudgeJob，执行 judgeSubmission
+        // 判题任务统一进入队列，避免并发过高时同时拉起过多执行环境
+        //只有队列需要执行时才调用 judgeSubmission，避免每个请求都先执行一次判题逻辑再排队
         const result = await (0, judgeAdmin_1.enqueueJudgeJob)(body.questId, body.language, mode, () => (0, judgeService_1.judgeSubmission)(body.questId, body.language, body.code, mode));
         if (typeof body.username === "string" && body.username.trim().length > 0) {
+            // 4.run/submit 都记录用户行为，后台 DAU 和活动统计会用到
             (0, analyticsStore_1.recordUserActivity)(body.username, `judge_${mode}`);
             if (mode === "submit") {
+                // 只有正式提交参与提交量和通过率统计
                 (0, analyticsStore_1.recordQuestSubmission)(body.username, body.questId, result.status);
             }
         }
+        // 5.返回判题结果
         return res.json({
             questId: body.questId,
             language: body.language,

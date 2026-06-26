@@ -18,7 +18,9 @@ import {
 //预留扩展空间:当前持久化结构和运行时题目结构一致，后续如有运行时字段可在这里Omit<QuestDefinition, xxx>排除
 type PersistedQuestPayload = QuestDefinition;
 type PersistedQuestStore = {
+  // 后台新增或覆盖的题目记录，以 quest id 为 key
   quests?: Record<string, unknown>;
+  // 被后台删除的内置题目 id，合并题库时会隐藏这些题
   deletedIds?: unknown[];
 };
 
@@ -98,6 +100,7 @@ function loadPersistedQuestStore(): { quests: Record<string, QuestDefinition>; d
     const questPayload = "quests" in parsed && parsed.quests && typeof parsed.quests === "object"
       ? parsed.quests
       : parsed;
+    // 兼容旧格式：旧文件可能直接是题目 map，新格式才有 deletedIds
     const deletedIds = Array.isArray((parsed as PersistedQuestStore).deletedIds)
       ? ((parsed as PersistedQuestStore).deletedIds as unknown[])
           .filter((entry) => typeof entry === "string" && entry.trim().length > 0)
@@ -109,6 +112,7 @@ function loadPersistedQuestStore(): { quests: Record<string, QuestDefinition>; d
 
     for (const [id, quest] of entries) {
       if (!isQuestDefinition(quest)) {
+        // 损坏或字段不完整的题目跳过，避免破坏后台和用户端题库
         continue;
       }
       result[id] = normalizeQuest(quest);
@@ -126,6 +130,7 @@ function loadPersistedQuestStore(): { quests: Record<string, QuestDefinition>; d
 // 每次新增、修改或删除题目后，把内存状态写回 quests.json
 function persistQuestMap(): void {
   fs.mkdirSync(path.dirname(questStorePath), { recursive: true });
+  // 同时保存后台维护题目和内置题目的删除标记
   fs.writeFileSync(questStorePath, JSON.stringify({
     quests: persistedQuestMap,
     deletedIds: Array.from(deletedQuestIds)
@@ -138,12 +143,14 @@ let deletedQuestIds = new Set<string>(loadedQuestStore.deletedIds);
 
 // 最终题库等于内置题库加后台覆盖题库，再移除后台删除标记
 function mergedQuestMap(): Record<string, QuestDefinition> {
+  // persistedQuestMap 会覆盖同 id 的内置题目，实现后台编辑内置题目的效果
   const merged = {
     ...questCatalog,
     ...persistedQuestMap
   };
 
   deletedQuestIds.forEach((questId) => {
+    // 删除内置题目时不改源码，只在合并结果中隐藏
     delete merged[questId];
   });
 
@@ -210,6 +217,7 @@ export function upsertQuestDefinition(candidate: unknown): { ok: true; quest: Qu
     return validated;
   }
 
+  // 如果之前删除过同 ID 题目，重新保存时撤销删除标记
   deletedQuestIds.delete(validated.quest.id);
   persistedQuestMap[validated.quest.id] = validated.quest;
   persistQuestMap();
@@ -238,6 +246,7 @@ export function deleteQuestDefinition(questId: string): { ok: true } | { ok: fal
     };
   }
 
+  // 后台维护题目直接删除覆盖记录；内置题目通过 deletedIds 隐藏
   delete persistedQuestMap[normalizedQuestId];
   deletedQuestIds.add(normalizedQuestId);
   persistQuestMap();

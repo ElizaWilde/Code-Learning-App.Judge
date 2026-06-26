@@ -56,6 +56,7 @@
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 	import { setActiveCommunityPostId } from '../../utils/communityPosts.uts'
 
+	// 后端公开社区帖子结构，只包含审核通过后允许展示的字段
 	type CommunityArticle = {
 		id : string
 		title : string
@@ -121,15 +122,17 @@
 		return copyMap[currentLanguage.value] || copyMap.en
 	})
 
+	// 搜索前统一转小写并去掉首尾空格，保证匹配逻辑稳定
 	const normalizeText = (value : string): string => {
 		return value.toLowerCase().trim()
 	}
 
+	// 标签参与趋势统计时统一小写，避免 AI 和 ai 被算成两个话题
 	const normalizeTag = (value : string): string => {
 		return value.trim().toLowerCase()
 	}
 
-	// 从本地社区工具加载帖子，并刷新列表数据
+	// 从后端加载已审核通过的公开帖子，并刷新列表数据
 	const loadCommunityPosts = () => {
 		uni.request({
 			url: getApiUrl('/api/community/posts'),
@@ -138,16 +141,19 @@
 			success: (res) => {
 				const data = res.data as any
 				if (res.statusCode == 200 && data != null && Array.isArray(data.items)) {
+					// 后端只返回 approved 帖子，前端不再展示 pending/rejected 内容
 					allArticles.value = data.items as CommunityArticle[]
 					applySearch()
 					return
 				}
 
+				// 响应格式异常时清空列表并显示空趋势
 				allArticles.value = [] as CommunityArticle[]
 				filteredArticles.value = [] as CommunityArticle[]
 				updateTrend()
 			},
 			fail: () => {
+				// 后端不可达时不使用旧数据，避免用户看到过期社区列表
 				allArticles.value = [] as CommunityArticle[]
 				filteredArticles.value = [] as CommunityArticle[]
 				updateTrend()
@@ -155,6 +161,7 @@
 		})
 	}
 
+	// 子序列匹配允许用户输入缩写式关键词，例如 "js" 命中 "javascript"
 	const isSubsequenceMatch = (query : string, target : string): boolean => {
 		if (query.length == 0) {
 			return true
@@ -173,10 +180,12 @@
 		return false
 	}
 
+	// 搜索范围覆盖标题、摘要、徽标和标签，不把正文全文纳入列表页搜索
 	const getArticleSearchText = (article : CommunityArticle): string => {
 		return normalizeText(article.title + ' ' + article.summary + ' ' + article.badge + ' ' + article.tags.join(' '))
 	}
 
+	// 搜索评分：完整命中最高，分词命中次之，子序列命中最低
 	const getMatchScore = (query : string, article : CommunityArticle): number => {
 		const normalizedQuery = normalizeText(query)
 		if (normalizedQuery.length == 0) {
@@ -204,12 +213,14 @@
 		return score
 	}
 
+	// 没有帖子或搜索无结果时展示统一空趋势文案
 	const setEmptyTrend = () => {
 		trendTitle.value = copy.value.emptyTrendTitle
 		trendSummary.value = copy.value.emptyTrendSummary
 		trendMeta.value = copy.value.emptyTrendMeta
 	}
 
+	// 从候选帖子中选择最匹配当前话题的一篇作为趋势摘要来源
 	const getRepresentativeArticle = (articles : CommunityArticle[], topic : string): CommunityArticle | null => {
 		if (articles.length == 0) {
 			return null
@@ -228,6 +239,7 @@
 		return bestArticle
 	}
 
+	// 根据搜索结果或全量帖子计算顶部趋势卡片内容
 	const updateTrend = () => {
 		const normalizedQuery = normalizeText(searchQuery.value)
 		const sourceArticles = normalizedQuery.length > 0 ? filteredArticles.value : allArticles.value
@@ -238,6 +250,7 @@
 
 		if (normalizedQuery.length > 0) {
 			const leadArticle = sourceArticles[0]
+			// 搜索时趋势卡片直接展示最相关的第一篇帖子
 			trendTitle.value = leadArticle.title
 			trendSummary.value = leadArticle.summary.length > 0 ? leadArticle.summary : leadArticle.content
 			trendMeta.value = copy.value.matchedTrendPrefix + '  ' + normalizedQuery + '  ' + sourceArticles.length + ' ' + (sourceArticles.length == 1 ? copy.value.relatedArticleSingular : copy.value.relatedArticlePlural)
@@ -252,6 +265,7 @@
 				if (tag.length == 0 || uniqueTags.indexOf(tag) >= 0) {
 					continue
 				}
+				// 同一篇帖子里的重复标签只计一次
 				uniqueTags.push(tag)
 				topicCounts[tag] = (topicCounts[tag] || 0) + 1
 			}
@@ -268,6 +282,7 @@
 
 		if (hottestTopic.length == 0) {
 			const leadArticle = allArticles.value[0]
+			// 没有标签时退回展示最新/首篇帖子
 			trendTitle.value = leadArticle.title
 			trendSummary.value = leadArticle.summary.length > 0 ? leadArticle.summary : leadArticle.content
 			trendMeta.value = copy.value.featuredPostPrefix + '  ' + allArticles.value.length + ' ' + copy.value.starterCountSuffix
@@ -289,6 +304,7 @@
 	const applySearch = () => {
 		const normalizedQuery = normalizeText(searchQuery.value)
 		if (normalizedQuery.length == 0) {
+			// 空搜索直接展示全部帖子，并按全量帖子重新计算热点
 			filteredArticles.value = allArticles.value
 			updateTrend()
 			return
@@ -302,6 +318,7 @@
 				}
 			})
 			.filter((item) : boolean => item.score > 0)
+			// 分数高的帖子排在前面，顶部趋势也会优先取第一条
 			.sort((left, right) : number => right.score - left.score)
 			.map((item) => item.article)
 
@@ -327,6 +344,7 @@
 
 	// 打开帖子详情前保存当前帖子 ID
 	const openArticle = (postId : string) => {
+		// 详情页不从 URL 参数取 id，而是读取 activeCommunityPostId
 		setActiveCommunityPostId(postId)
 		uni.navigateTo({
 			url: '/pages/communityPost/communityPost',

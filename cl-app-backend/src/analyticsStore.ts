@@ -4,6 +4,7 @@ import { db } from "./db";
 type SubmissionStatus = "accepted" | "failed";
 
 type WrongAnswerSnapshotInput = {
+  // 一条快照表示“某用户在某学习模块当前有多少道错题”
   username: string;
   pathId: string;
   pathTitle: string;
@@ -12,6 +13,7 @@ type WrongAnswerSnapshotInput = {
   wrongCount: number;
 };
 
+// 后台看板默认展示最近 14 天数据
 const DEFAULT_ANALYTICS_DAYS = 14;
 
 // 学习模块目录用于补全错题分布，即使某模块暂无错题也能在看板中出现
@@ -70,6 +72,7 @@ db.exec(`
     module_title TEXT NOT NULL,
     wrong_count INTEGER NOT NULL,
     updated_at TEXT NOT NULL,
+    -- 同一用户同一模块只保留最新错题数量，避免重复提交不断累加
     PRIMARY KEY (username, module_id)
   );
 `);
@@ -83,6 +86,7 @@ function formatDateKey(date: Date): string {
 }
 
 function todayKey(): string {
+  // 事件默认按服务端当天归档
   return formatDateKey(new Date());
 }
 
@@ -95,6 +99,7 @@ function trimUsername(username: string): string {
 // 记录用户行为事件，例如 login、judge_run、judge_submit、wrong_answer_sync
 export function recordUserActivity(username: string, eventType: string, eventDate: string = todayKey()): void {
   db.prepare(`
+    -- 每次行为写入一条事件，用于后续按天统计活跃用户
     INSERT INTO analytics_activity_events (username, event_type, event_date, created_at)
     VALUES (?, ?, ?, ?)
   `).run(trimUsername(username), eventType, eventDate, new Date().toISOString());
@@ -103,6 +108,7 @@ export function recordUserActivity(username: string, eventType: string, eventDat
 // 记录代码提交结果，用于计算提交量和通过率
 export function recordQuestSubmission(username: string, questId: string, status: SubmissionStatus, eventDate: string = todayKey()): void {
   db.prepare(`
+    -- 判题提交单独记录结果状态，后台用 total 和 accepted 计算通过率
     INSERT INTO analytics_submission_events (username, quest_id, status, event_date, created_at)
     VALUES (?, ?, ?, ?, ?)
   `).run(trimUsername(username), questId, status, eventDate, new Date().toISOString());
@@ -111,6 +117,7 @@ export function recordQuestSubmission(username: string, questId: string, status:
 // 同步某个用户在某个学习模块下的错题数量，重复同步时覆盖旧快照
 export function upsertWrongAnswerSnapshot(input: WrongAnswerSnapshotInput): void {
   const username = trimUsername(input.username);
+  // 错题数量不允许为负数，小数会四舍五入成整数
   const wrongCount = Math.max(0, Math.round(input.wrongCount));
 
   db.prepare(`
@@ -119,6 +126,7 @@ export function upsertWrongAnswerSnapshot(input: WrongAnswerSnapshotInput): void
     )
     VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(username, module_id) DO UPDATE SET
+      -- 重复同步同一模块时覆盖旧快照，确保看板展示当前错题数量
       path_id = excluded.path_id,
       path_title = excluded.path_title,
       module_title = excluded.module_title,
@@ -134,6 +142,7 @@ export function upsertWrongAnswerSnapshot(input: WrongAnswerSnapshotInput): void
     new Date().toISOString()
   );
 
+  // 同步错题也算一次学习行为，能进入 DAU 统计
   recordUserActivity(username, "wrong_answer_sync");
 }
 
@@ -142,6 +151,7 @@ function buildDateWindow(days: number): string[] {
   const output: string[] = [];
   const today = new Date();
   for (let offset = days - 1; offset >= 0; offset -= 1) {
+    // 从最早日期推到今天，方便图表按时间顺序绘制
     output.push(formatDateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset)));
   }
   return output;
@@ -149,6 +159,7 @@ function buildDateWindow(days: number): string[] {
 
 // 聚合后台学习数据看板，包括 DAU、提交量、通过率和错题分布
 export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
+  // 防止外部传入过大窗口拖慢看板查询，最多展示 60 天
   const normalizedDays = Math.max(1, Math.min(60, Math.round(days)));
   const dateWindow = buildDateWindow(normalizedDays);
   const startDate = dateWindow[0];
@@ -180,6 +191,7 @@ export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
 
   const dauSeries = dateWindow.map((date) => ({
     date,
+    // 没有事件的日期补 0，避免前端折线图缺点
     value: dauMap.get(date) ?? 0
   }));
 
@@ -192,6 +204,7 @@ export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
     const totals = submissionMap.get(date) ?? { total: 0, accepted: 0 };
     return {
       date,
+      // 当天没有提交时通过率按 0 处理，避免除以 0
       value: totals.total === 0 ? 0 : Number(((totals.accepted / totals.total) * 100).toFixed(1))
     };
   });
@@ -211,6 +224,7 @@ export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
 
   const distributionMap = new Map(distributionRows.map((row) => [row.module_id, Number(row.total || 0)]));
   const catalogModuleIds = new Set(learningModuleCatalog.map((module) => module.moduleId));
+  // 先按目录生成完整模块列表，暂无错题的模块也返回 0
   const moduleDistribution = learningModuleCatalog.map((module) => ({
     moduleId: module.moduleId,
     moduleTitle: module.moduleTitle,
@@ -239,6 +253,7 @@ export function getAnalyticsDashboard(days: number = DEFAULT_ANALYTICS_DAYS) {
   moduleDistribution.forEach((item) => {
     const existing = pathTotals.get(item.pathId);
     if (existing) {
+      // 同一路径下多个模块的错题数量累加成路径总数
       existing.wrongCount += item.wrongCount;
       return;
     }

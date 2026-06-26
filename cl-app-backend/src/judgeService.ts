@@ -68,6 +68,7 @@ export async function judgeSubmission(
   code: string,
   mode: JudgeMode
 ): Promise<JudgeResponse> {
+  //1.根据 questId 获取题目定义，如果题目不存在直接返回错误响应
   const quest = getQuestDefinition(questId);
 
   if (!quest) {
@@ -89,6 +90,7 @@ export async function judgeSubmission(
     };
   }
 
+  //2. 根据语言获取语言配置，如果语言未启用则返回错误响应
   const languageConfig = getLanguageAdminConfig(language);
   if (!languageConfig.enabled) {
     return {
@@ -109,28 +111,40 @@ export async function judgeSubmission(
     };
   }
 
+  //3. 根据模式选择测试用例，run 模式只跑可见测试，submit 模式跑全部测试用例，并逐个执行
+  // 每个测试用例的执行结果会被立即处理，遇到编译错误、运行错误、超时或错误答案会立即返回响应，不继续执行后续用例。
   const tests = mode === "run" ? quest.visibleTests : [...quest.visibleTests, ...quest.hiddenTests];
+  //存储所有测试用例结果
   const logs: JudgeLog[] = [];
+  //记录通过了测试用例的数量
   let passedCount = 0;
+  //记录总运行时间
   let totalRuntimeMs = 0;
 
+  // run 只跑可见样例用于调试，submit 会追加隐藏用例用于正式判定
   for (const testCase of tests) {
+    //await--等待当前测试完成，然后再运行下一个测试
     const result = await runSingleTest(quest, language, code, testCase);
+    //保存日志和时间
     logs.push(result.log);
     totalRuntimeMs += result.log.durationMs;
 
+    //编译错误
     if (result.kind === "compile_error") {
       return finalizeJudgeResponse(quest, logs, passedCount, tests.length, "compile_error", "Compilation failed. Check syntax, class names, or missing returns.", totalRuntimeMs);
     }
 
+    //超时
     if (result.kind === "time_limit") {
       return finalizeJudgeResponse(quest, logs, passedCount, tests.length, "time_limit", "The program exceeded the time limit. Look for slower-than-expected logic.", totalRuntimeMs);
     }
 
+    //运行时错误
     if (result.kind === "runtime_error") {
       return finalizeJudgeResponse(quest, logs, passedCount, tests.length, "runtime_error", "The program crashed while running. Check index bounds, null handling, or invalid operations.", totalRuntimeMs);
     }
 
+    //错误答案
     if (result.kind === "wrong_answer") {
       return finalizeJudgeResponse(quest, logs, passedCount, tests.length, "wrong_answer", "The output format is valid, but at least one test case produced the wrong result.", totalRuntimeMs);
     }
@@ -151,8 +165,11 @@ function finalizeJudgeResponse(
   errorHint: string,
   runtimeMs: number
 ): JudgeResponse {
+  // 根据通过用例数计算百分制分数，没有测试用例时避免除以 0。
   const score = totalCount === 0 ? 0 : Math.round((passedCount / totalCount) * 100);
+  // 只有全部测试通过才返回 accepted，否则统一返回 failed。
   const status: JudgeStatus = passedCount === totalCount ? "accepted" : "failed";
+  // 前端摘要优先展示 Accepted；失败时取最后一次失败日志中的错误类型。
   const summary = status === "accepted" ? "Accepted" : logs.length > 0 ? logs[logs.length - 1].errorType.replace("_", " ") : "Failed";
 
   return {
@@ -180,15 +197,19 @@ async function runSingleTest(
   code: string,
   testCase: JudgeTestCase
 ): Promise<{ kind: ErrorType | "passed"; log: JudgeLog }> {
+  // 1.每个测试用例使用独立临时目录，避免文件、编译产物或运行状态互相污染
   const workdir = await fs.mkdtemp(path.join(os.tmpdir(), "cl-judge-"));
 
   try {
+    // 2.每个测试用例单独生成可执行源码，避免上一次运行的文件或状态影响本次判题
     const source = buildWrappedSource(quest, language, code, testCase);
     const fileMap = getSourceFiles(language, source);
+    // 3.按语言配置写入入口文件，例如 Python 的 solution.py 或 Java 的 Main.java
     for (const entry of fileMap) {
       await fs.writeFile(path.join(workdir, entry.name), entry.content, "utf8");
     }
 
+    // 4.进入 Docker 执行编译和运行阶段，返回两个阶段的状态、输出和耗时
     const execution = await executeInDocker(language, workdir);
     if (execution.launcherError) {
       return {
@@ -238,6 +259,7 @@ async function runSingleTest(
       };
     }
 
+    // 编译通过后必须有运行阶段产物，否则按运行错误返回给前端
     const runResult = execution.run ?? {
       exitCode: -1,
       stdout: "",
@@ -278,8 +300,10 @@ async function runSingleTest(
 
     const actualValue = parseProgramOutput(runResult.stdout);
     const expectedValue = normalizeValue(testCase.expected);
+    // 和 expected 做 deepEqual:统一把 JSON、数组、对象做规范化后再比较，避免输出格式细节影响判题
     const passed = actualValue.ok && deepEqual(actualValue.value, expectedValue);
 
+    //生成 JudgeLog
     return {
       kind: passed ? "passed" : "wrong_answer",
       log: {
@@ -294,12 +318,15 @@ async function runSingleTest(
       }
     };
   } finally {
+    // 临时目录只保存本次用例的源码和容器产物，判题结束后立即清理
     await fs.rm(workdir, { recursive: true, force: true });
   }
 }
 
+// 根据语言配置返回需要写入临时目录的源文件列表
 function getSourceFiles(language: JudgeLanguage, source: string): Array<{ name: string; content: string }> {
   const languageConfig = getLanguageAdminConfig(language);
+  // 源码文件名来自后台判题配置，便于按语言切换 Main.java、solution.py 等入口文件
   return [{ name: languageConfig.sourceFileName, content: source }];
 }
 
@@ -313,6 +340,7 @@ async function executeInDocker(language: JudgeLanguage, workdir: string): Promis
   const runCommand = buildCommand(languageConfig.runCommand, language);
   const outerTimeoutMs = limits.compileTimeoutMs + limits.runTimeoutMs + 5000;
 
+  // 容器内脚本把编译和运行阶段的 stdout/stderr/status 写入 artifacts，宿主进程只读取这些产物。
   await fs.mkdir(artifactsDir, { recursive: true });
   await fs.writeFile(
     scriptPath,
@@ -323,6 +351,7 @@ async function executeInDocker(language: JudgeLanguage, workdir: string): Promis
   const containerName = `cl-judge-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const dockerArgs = buildDockerRunArgs(languageConfig.dockerImage, workdir, containerName, limits.memoryLimitKb);
   const launcherResult = await execDockerCommand(dockerArgs, workdir, outerTimeoutMs, limits.maxOutputBufferKb, containerName);
+  // 优先相信阶段产物；Docker 启动器输出只用于定位容器未启动或异常退出。
   const compile = await readPhaseResult(artifactsDir, "compile");
   const run = await readPhaseResult(artifactsDir, "run");
 
@@ -353,12 +382,14 @@ async function executeInDocker(language: JudgeLanguage, workdir: string): Promis
   };
 }
 
+// 生成容器内执行的 shell 脚本，负责按阶段执行编译和运行并记录产物。
 function buildDockerJudgeScript(
   compileCommand: string[],
   runCommand: string[],
   compileTimeoutMs: number,
   runTimeoutMs: number
 ): string {
+  // 没有编译命令的解释型语言直接写入编译成功状态，再进入运行阶段。
   const compileStep = compileCommand.length === 0
     ? "printf '0' > \"$ARTIFACT_DIR/compile.status\"\n: > \"$ARTIFACT_DIR/compile.stdout\"\n: > \"$ARTIFACT_DIR/compile.stderr\""
     : `run_phase compile ${formatTimeoutSeconds(compileTimeoutMs)} ${toShellCommand(compileCommand)}
@@ -415,12 +446,14 @@ exit 0
 `;
 }
 
+// 组装 docker run 参数，把临时目录挂载到容器并应用资源限制。
 function buildDockerRunArgs(
   image: string,
   workdir: string,
   containerName: string,
   memoryLimitKb: number | null
 ): string[] {
+  // Docker 参数限制网络、权限、进程数、CPU 和内存，降低用户代码对宿主环境的影响。
   const args = [
     "run",
     "--rm",
@@ -443,6 +476,7 @@ function buildDockerRunArgs(
   ];
 
   if (memoryLimitKb !== null) {
+    // memory-swap 与 memory 保持一致，避免容器通过 swap 绕过内存限制。
     args.push("--memory", `${memoryLimitKb}k`, "--memory-swap", `${memoryLimitKb}k`);
   }
 
@@ -450,6 +484,7 @@ function buildDockerRunArgs(
   return args;
 }
 
+// 启动 Docker 命令并收集 stdout、stderr、退出码、耗时和外层超时状态。
 function execDockerCommand(
   args: string[],
   cwd: string,
@@ -467,6 +502,7 @@ function execDockerCommand(
     let settled = false;
     const child = spawn(command, args, { cwd, windowsHide: true });
 
+    // 限制保留的输出长度，防止用户代码打印海量内容占用后端内存。
     const appendOutput = (current: string, chunk: Buffer): string => {
       const next = current + chunk.toString("utf8");
       return next.length > maxBytes ? next.slice(next.length - maxBytes) : next;
@@ -484,6 +520,7 @@ function execDockerCommand(
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill();
+      // 外层超时后强制删除容器，避免后台残留长时间运行的判题容器。
       void forceRemoveDockerContainer(command, containerName);
     }, timeoutMs);
 
@@ -522,6 +559,7 @@ function execDockerCommand(
   });
 }
 
+// 强制删除指定判题容器，用于超时或启动失败后的兜底清理。
 function forceRemoveDockerContainer(command: string, containerName: string): Promise<void> {
   return new Promise((resolve) => {
     const cleanup = spawn(command, ["rm", "-f", containerName], { windowsHide: true });
@@ -530,6 +568,7 @@ function forceRemoveDockerContainer(command: string, containerName: string): Pro
   });
 }
 
+// 读取编译或运行阶段写出的 status/stdout/stderr 文件，转换成统一执行结果。
 async function readPhaseResult(artifactsDir: string, phase: "compile" | "run"): Promise<PhaseExecutionResult | null> {
   const statusText = await readOptionalFile(path.join(artifactsDir, `${phase}.status`));
   if (statusText === null) {
@@ -558,6 +597,7 @@ async function readPhaseResult(artifactsDir: string, phase: "compile" | "run"): 
   };
 }
 
+// 尝试读取文件；文件不存在或读取失败时返回 null，避免判题流程被辅助文件缺失打断。
 async function readOptionalFile(filePath: string): Promise<string | null> {
   try {
     return await fs.readFile(filePath, "utf8");
@@ -566,18 +606,22 @@ async function readOptionalFile(filePath: string): Promise<string | null> {
   }
 }
 
+// 把命令数组转换成可安全写入 shell 脚本的一整行命令。
 function toShellCommand(command: string[]): string {
   return command.map((segment) => shellQuote(segment)).join(" ");
 }
 
+// 对单个 shell 参数做单引号转义，避免空格或特殊字符改变命令含义。
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+// 把毫秒级超时时间转换成 shell sleep 可以使用的秒数字符串。
 function formatTimeoutSeconds(timeoutMs: number): string {
   return (timeoutMs / 1000).toFixed(3);
 }
 
+// 解析用户程序输出，把可识别的 JSON、布尔值、数字或字符串转成可比较的值。
 function parseProgramOutput(output: string): { ok: true; value: unknown } | { ok: false } {
   const trimmed = safeTrim(output);
   if (!trimmed) {
@@ -585,8 +629,10 @@ function parseProgramOutput(output: string): { ok: true; value: unknown } | { ok
   }
 
   try {
+    // 标准输出优先按 JSON 解析，兼容数组、对象、字符串和布尔值等题目答案。
     return { ok: true, value: normalizeValue(JSON.parse(trimmed)) };
   } catch {
+    // 非 JSON 输出再按布尔、数字、普通字符串兜底解析，提升简单题目的容错性。
     if (trimmed === "true" || trimmed === "false") {
       return { ok: true, value: trimmed === "true" };
     }
@@ -598,11 +644,13 @@ function parseProgramOutput(output: string): { ok: true; value: unknown } | { ok
   }
 }
 
+// 递归规范化数组和对象，保证期望值与实际输出按同一规则比较。
 function normalizeValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => normalizeValue(item));
   }
   if (value && typeof value === "object") {
+    // 递归规范化对象字段，保证 deepEqual 比较时左右两侧使用同一套序列化规则。
     const result: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {
       result[key] = normalizeValue(item);
@@ -612,27 +660,33 @@ function normalizeValue(value: unknown): unknown {
   return value;
 }
 
+// 使用规范化后的 JSON 序列化结果判断两个判题值是否相等。
 function deepEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(normalizeValue(left)) === JSON.stringify(normalizeValue(right));
 }
 
+// 把判题值转换成稳定的 JSON 字符串，供日志中的 expected/actual 展示。
 function stringifyValue(value: unknown): string {
   return JSON.stringify(normalizeValue(value));
 }
 
+// 去掉 Windows 回车符并裁剪首尾空白，统一不同平台下的输出格式。
 function safeTrim(value: string): string {
   return value.replace(/\r/g, "").trim();
 }
 
 // 把用户提交的函数或类包装成可独立运行的 Python/Java 程序
 function buildWrappedSource(quest: QuestDefinition, language: JudgeLanguage, code: string, testCase: JudgeTestCase): string {
+  // 包装代码负责把平台测试用例转换成用户 solve/类方法可以直接接收的调用参数。
   if (language === "python") {
     return buildPythonSource(quest.kind, code, testCase.input);
   }
   return buildJavaSource(quest.kind, code, testCase.input);
 }
 
+// 把 TypeScript 中的测试数据转换成 Python 源码可直接使用的字面量。
 function pyLiteral(value: unknown): string {
+  // 把 JSON 风格测试数据转成 Python 字面量，供动态生成的 runner 直接调用。
   if (value === null) return "None";
   if (typeof value === "string") return JSON.stringify(value);
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -643,14 +697,17 @@ function pyLiteral(value: unknown): string {
   return "None";
 }
 
+// 把数字数组转换成 Java int[] 字面量。
 function javaIntArray(values: number[]): string {
   return `new int[]{${values.join(", ")}}`;
 }
 
+// 把字符串或 null 数组转换成 Java String[] 字面量。
 function javaStringArray(values: Array<string | null>): string {
   return `new String[]{${values.map((item) => item === null ? "null" : `"${item}"`).join(", ")}}`;
 }
 
+// 把二维字符串网格转换成 Java char[][] 字面量。
 function javaCharGrid(grid: string[][]): string {
   return `new char[][]{${grid.map((row) => `{${row.map((cell) => `'${cell}'`).join(", ")}}`).join(", ")}}`;
 }
@@ -694,6 +751,7 @@ def _tree_to_list(root):
 
   let runner = "";
   const data = input as Record<string, unknown>;
+  // 不同题型的入参结构不同，这里按 QuestKind 生成对应的 solve 调用代码
   switch (kind) {
     case "two_sum":
       runner = `result = solve(${pyLiteral(data.nums)}, ${pyLiteral(data.target)})\nprint(json.dumps(result))\n`;
@@ -833,6 +891,7 @@ class MainSupport {
 
   const data = input as Record<string, unknown>;
   let mainBody = "";
+  // Java 用户代码统一由生成的 Main.main 驱动，并把结果打印成可比较的文本。
   switch (kind) {
     case "two_sum":
       mainBody = `Solution solution = new Solution();\nSystem.out.print(MainSupport.intArrayToJson(solution.solve(${javaIntArray(data.nums as number[])}, ${data.target})));`;
@@ -898,6 +957,7 @@ System.out.print("[" + String.join(",", result) + "]");
   return `${header}${code}\n${helpers}\npublic class Main {\n    public static void main(String[] args) {\n        ${mainBody}\n    }\n}\n`;
 }
 
+// 给多行字符串统一添加缩进，方便把生成代码嵌入模板。
 function indentLines(value: string, spaces: number): string {
   const prefix = " ".repeat(spaces);
   return value

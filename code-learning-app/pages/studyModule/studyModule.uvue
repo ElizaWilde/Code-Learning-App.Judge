@@ -7,6 +7,7 @@
 			<text class="subtitle">{{ currentModule.subtitle }}</text>
 		</view>
 
+		<!-- 知识讲解区域：同一个详情页根据 currentModule 渲染不同模块内容 -->
 		<view class="section-card knowledge">
 			<text class="section-tag">{{ copy.sectionTag }}</text>
 			<text class="section-title">{{ copy.sectionTitle }}</text>
@@ -21,6 +22,7 @@
 
 			<view class="media-block">
 				<text class="media-label">{{ copy.quickVideo }}</text>
+				<!-- 普通 mp4 地址直接使用 video 组件播放 -->
 				<video
 					v-if="!isWebVideo"
 					class="lesson-video"
@@ -30,6 +32,7 @@
 					show-center-play-btn
 					object-fit="cover"
 				></video>
+				<!-- B 站等网页视频需要通过 web-view 加载嵌入播放器 -->
 				<web-view
 					v-if="isWebVideo"
 					class="lesson-video web-video-frame"
@@ -46,7 +49,9 @@
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 	import { getStudyModuleMedia, isWebVideoUrl, toWebVideoPlayerUrl } from '../../utils/studyMedia.uts'
 
+	// 路径页会先把模块 ID 写入这个 key，详情页再读取它来决定展示内容
 	const ACTIVE_STUDY_MODULE_KEY = 'activeStudyModule'
+	// 统一的模块详情数据结构：标题正文、媒体资源和练习入口都放在一个对象里
 	type StudyModuleDetail = {
 		id : string
 		pathLabel : string
@@ -60,7 +65,9 @@
 		practiceUrl : string
 	}
 
+	// 当前语言用于切换页面固定文案和模块正文
 	const currentLanguage = ref(getCurrentLanguage() as string)
+	// 学习详情页固定文案，模块正文另由 zhModuleCopyMap 本地化
 	const copyMap = {
 		en: {
 			sectionTag: 'Knowledge Guide',
@@ -85,6 +92,7 @@
 		return copyMap[currentLanguage.value] || copyMap.en
 	})
 
+	// 中文模块正文表：英文内容由 getStudyModule 返回，中文只覆盖文字字段
 	const zhModuleCopyMap = {
 		'javascript-syntax': {
 			pathLabel: 'JavaScript 模块 1',
@@ -216,6 +224,7 @@
 		},
 	} as any
 
+	// 根据当前语言替换模块文字内容；媒体和练习入口始终复用原模块配置
 	const localizeModule = (module : StudyModuleDetail) : StudyModuleDetail => {
 		if (currentLanguage.value != 'zh') {
 			return module
@@ -240,6 +249,7 @@
 		}
 	}
 
+	// 默认模块兜底：模块 ID 缺失或不识别时，仍展示 JavaScript 语法模块，避免空白页
 	const fallbackModule = () : StudyModuleDetail => {
 		const media = getStudyModuleMedia('javascript-syntax')
 		return {
@@ -256,6 +266,7 @@
 		}
 	}
 
+	// 根据模块 ID 组装详情页需要的标题、讲解、媒体和练习入口
 	const getStudyModule = (moduleId : string) : StudyModuleDetail => {
 		switch (moduleId) {
 			case 'javascript-syntax':
@@ -475,11 +486,14 @@
 		}
 	}
 
+	// 当前模块 ID 和详情对象分开保存，语言切换时可用 ID 重新生成本地化内容
 	const currentModuleId = ref('javascript-syntax')
 	const currentModule = ref(fallbackModule())
+	// 根据视频地址判断使用 video 组件还是 web-view 播放器
 	const isWebVideo = computed(() : boolean => {
 		return isWebVideoUrl(currentModule.value.videoUrl)
 	})
+	// web-view 需要的是可嵌入播放器地址，普通视频地址会原样返回
 	const webVideoUrl = computed(() : string => {
 		return toWebVideoPlayerUrl(currentModule.value.videoUrl)
 	})
@@ -488,6 +502,7 @@
 	onLoad(() => {
 		currentLanguage.value = getCurrentLanguage()
 		const moduleId = uni.getStorageSync(ACTIVE_STUDY_MODULE_KEY) as string
+		// 保存模块 ID，后续 onShow 刷新语言时还可以重新取同一个模块
 		currentModuleId.value = moduleId
 		currentModule.value = localizeModule(getStudyModule(currentModuleId.value))
 		uni.setNavigationBarTitle({
@@ -498,6 +513,7 @@
 	// 页面显示时刷新语言和导航栏标题
 	onShow(() => {
 		currentLanguage.value = getCurrentLanguage()
+		// 从模块 ID 重新构造详情，保证语言切换后正文和标题同步更新
 		currentModule.value = localizeModule(getStudyModule(currentModuleId.value))
 		uni.setNavigationBarTitle({
 			title: currentModule.value.title,

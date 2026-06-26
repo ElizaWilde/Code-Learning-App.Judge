@@ -52,8 +52,10 @@
 	const REMINDERS_ENABLED_KEY = 'remindersEnabled'
 	const SCHEDULED_REMINDERS_KEY = 'scheduledReminders'
 
+	// 提醒设置状态保存在本地，个人中心只提供入口
 	const reminderTime = ref('09:00')
 	const remindersEnabled = ref(false)
+	// 不同运行环境对系统通知支持不同，用这两个状态决定是否降级到弹窗
 	const notificationSupported = ref(false)
 	const notificationPermission = ref('default')
 	const currentLanguage = ref(getCurrentLanguage() as string)
@@ -117,14 +119,18 @@
 		return copyMap[currentLanguage.value] || copyMap.en
 	})
 
+	// 当前页面内存里的定时器 id，切换时间或关闭提醒时需要清理
 	let reminderTimeoutId: number | null = null
+	// Web 端通过 service worker 展示更接近系统通知的提醒
 	let swRegistration: ServiceWorkerRegistration | null = null
 
+	// App 运行时优先使用 plus.push；H5 环境使用 Notification / Service Worker
 	const isPlusRuntime = () => typeof plus !== 'undefined' && plus != null
 	const isWebNotificationAvailable = () => typeof window !== 'undefined' && typeof Notification !== 'undefined'
 	const isServiceWorkerAvailable = () => typeof navigator !== 'undefined' && 'serviceWorker' in navigator
 
 	const loadReminderSettings = () => {
+		// 从本地存储恢复上次选择的提醒时间和开关状态
 		const savedTime = uni.getStorageSync(REMINDER_TIME_KEY) as string
 		if (savedTime) {
 			reminderTime.value = savedTime
@@ -137,16 +143,19 @@
 	}
 
 	const saveReminderSettings = () => {
+		// 每次修改时间或开关后立即持久化，返回页面时可恢复
 		uni.setStorageSync(REMINDER_TIME_KEY, reminderTime.value)
 		uni.setStorageSync(REMINDERS_ENABLED_KEY, remindersEnabled.value.toString())
 	}
 
 	const saveScheduledReminder = (nextReminder: number | null) => {
 		if (nextReminder === null) {
+			// 关闭提醒时清空下一次触发时间
 			uni.setStorageSync(SCHEDULED_REMINDERS_KEY, '')
 			return
 		}
 
+		// 保存下一次提醒时间戳，页面重新打开时可判断是否错过提醒
 		uni.setStorageSync(SCHEDULED_REMINDERS_KEY, JSON.stringify({
 			time: reminderTime.value,
 			enabled: remindersEnabled.value,
@@ -160,6 +169,7 @@
 	const createOsNotification = async (title: string, body: string) => {
 		if (isPlusRuntime() && plus.push && plus.push.createMessage) {
 			try {
+				// App 环境优先创建原生推送消息
 				plus.push.createMessage(title, body, {
 					title,
 					content: body,
@@ -173,6 +183,7 @@
 
 		if (swRegistration && swRegistration.showNotification) {
 			try {
+				// H5 已注册 service worker 时用 showNotification
 				await swRegistration.showNotification(title, {
 					body,
 					tag: 'daily-practice-reminder',
@@ -186,6 +197,7 @@
 		}
 
 		if (isWebNotificationAvailable() && Notification.permission === 'granted') {
+			// 最后退回浏览器 Notification API
 			new Notification(title, {
 				body,
 				tag: 'daily-practice-reminder'
@@ -195,11 +207,13 @@
 
 	const requestNotificationPermission = async () => {
 		if (isPlusRuntime()) {
+			// App 端由系统/运行时处理权限，这里直接视为支持
 			notificationSupported.value = true
 			return
 		}
 
 		if (!isWebNotificationAvailable()) {
+			// 不支持 Notification 时后续会用 uni.showModal 兜底
 			notificationSupported.value = false
 			return
 		}
@@ -208,6 +222,7 @@
 		notificationPermission.value = Notification.permission
 		if (Notification.permission === 'default') {
 			try {
+				// 浏览器首次使用通知前需要请求权限
 				const result = await Notification.requestPermission()
 				notificationPermission.value = result
 			} catch (error) {
@@ -222,6 +237,7 @@
 		}
 
 		try {
+			// sw.js 负责承载 Web 通知能力
 			swRegistration = await navigator.serviceWorker.register('/sw.js')
 		} catch (error) {
 			console.warn('Service worker registration failed', error)
@@ -230,6 +246,7 @@
 
 	const clearReminderTimeout = () => {
 		if (reminderTimeoutId !== null) {
+			// 重新调度前清理旧定时器，避免同一时间弹出多次提醒
 			clearTimeout(reminderTimeoutId)
 			reminderTimeoutId = null
 		}
@@ -240,6 +257,7 @@
 		const now = new Date()
 		const reminderDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes)
 		if (reminderDate.getTime() <= now.getTime()) {
+			// 今天的提醒时间已过，则安排到明天同一时间
 			reminderDate.setDate(reminderDate.getDate() + 1)
 		}
 		return reminderDate.getTime()
@@ -250,6 +268,7 @@
 		clearReminderTimeout()
 
 		if (!remindersEnabled.value) {
+			// 关闭提醒时只保存设置并清空调度记录
 			saveScheduledReminder(null)
 			uni.showToast({
 				title: copy.value.remindersDisabled,
@@ -268,6 +287,7 @@
 
 		const delay = Math.max(0, nextReminder - now)
 		reminderTimeoutId = setTimeout(async () => {
+			// 到点后发送通知，并立即安排下一次提醒
 			await createOsNotification(getNotificationTitle(), getNotificationBody())
 			saveScheduledReminder(getNextReminderTimestamp())
 			scheduleReminders()
@@ -288,6 +308,7 @@
 
 		try {
 			const reminderData = JSON.parse(reminderDataStr)
+			// 用已调度数据恢复页面状态，避免本地 key 不一致
 			if (typeof reminderData.time === 'string') {
 				reminderTime.value = reminderData.time
 			}
@@ -310,6 +331,7 @@
 			const nextReminder = Number(reminderData.nextReminder || 0)
 			const now = Date.now()
 			if (reminderData.enabled && now >= nextReminder && now <= nextReminder + 5 * 60 * 1000) {
+				// 页面刚打开时，如果错过的提醒仍在 5 分钟窗口内，则补发一次
 				await createOsNotification(getNotificationTitle(), getNotificationBody())
 				saveScheduledReminder(getNextReminderTimestamp())
 				scheduleReminders()
@@ -323,6 +345,7 @@
 		const timeOptions = []
 		for (let hour = 0; hour < 24; hour++) {
 			for (let minute = 0; minute < 60; minute += 30) {
+				// 提醒时间以 30 分钟为粒度
 				const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
 				timeOptions.push(timeString)
 			}
@@ -342,6 +365,7 @@
 			itemColor: '#6b4cd3',
 			success: (res) => {
 				reminderTime.value = timeOptions[res.tapIndex]
+				// 修改时间后立即重新调度
 				scheduleReminders()
 				uni.showToast({
 					title: copy.value.reminderTimeSetPrefix + reminderTime.value,
@@ -358,11 +382,13 @@
 	const toggleReminders = (enabled: boolean) => {
 		remindersEnabled.value = enabled
 		saveReminderSettings()
+		// 开关变化后立即更新定时器和持久化调度
 		scheduleReminders()
 	}
 
 	const showReminderNotification = async () => {
 		if (!notificationSupported.value) {
+			// 通知能力不可用时，用应用内弹窗模拟提醒，并允许直接跳到练习页
 			uni.showModal({
 				title: copy.value.modalTitle,
 				content: getNotificationBody(),
@@ -383,6 +409,7 @@
 
 	const testReminder = async () => {
 		if (remindersEnabled.value) {
+			// 测试提醒不会改变下一次真实提醒时间
 			await showReminderNotification()
 		} else {
 			uni.showToast({

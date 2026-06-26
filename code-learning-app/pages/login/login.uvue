@@ -1,6 +1,7 @@
 <!-- 功能：登录注册页，处理用户账号输入、身份切换、登录注册和本地会话保存 -->
 <template>
 	<view class="page">
+		<!-- 语言切换按钮：切换后 copy 计算属性会自动刷新页面文案 -->
 		<view class="language-switch">
 			<button
 				class="language-button"
@@ -28,6 +29,7 @@
 			<text class="subtitle">{{ isRegisterMode ? copy.registerSubtitle : copy.loginSubtitle }}</text>
 		</view>
 
+		<!-- 登录和注册共用同一张表单，通过 isRegisterMode 控制按钮文案和请求接口 -->
 		<view class="card">
 			<view class="field">
 				<input
@@ -61,9 +63,11 @@
 	import { getApiUrl } from '../../utils/api'
 	import { getCurrentLanguage, setCurrentLanguage } from '../../utils/i18n.uts'
 
+	// 认证模式只允许登录或注册，避免后续拼接出非法接口地址
 	type AuthMode = 'login' | 'register'
 	type LanguageCode = 'en' | 'zh'
 
+	// 表单状态集中管理，便于提交、报错和 loading 状态同步刷新
 	type LoginForm = {
 		username: string
 		password: string
@@ -76,6 +80,7 @@
 		password: string
 	}
 
+	// 登录页所有可切换文案的结构，中英文 copyMap 必须保持字段一致
 	type LoginCopy = {
 		welcome: string
 		loginSubtitle: string
@@ -101,9 +106,12 @@
 	const LOGIN_USER_KEY = 'loggedInUser'
 	const LOGIN_USER_TYPE_KEY = 'loggedInUserType'
 	const AUTH_TOKEN_KEY = 'authToken'
+	// false 表示登录模式，true 表示注册模式
 	const isRegisterMode = ref(false)
+	// 当前语言从本地偏好读取，页面内切换后会同步写回
 	const currentLanguage = ref(getCurrentLanguage() as LanguageCode)
 
+	// 页面文案表：UI 不直接写死文字，方便登录/注册状态和语言一起切换
 	const copyMap = {
 		en: {
 			welcome: 'Welcome to',
@@ -147,10 +155,12 @@
 		},
 	} as Record<LanguageCode, LoginCopy>
 
+	// 根据 currentLanguage 动态取文案，语言变化时模板会自动重新渲染
 	const copy = computed(() : LoginCopy => {
 		return copyMap[currentLanguage.value]
 	})
 
+	// reactive 让表单输入、错误提示和提交状态直接驱动页面更新
 	const form = reactive({
 		username: '',
 		password: '',
@@ -165,6 +175,7 @@
 		})
 	}
 
+	// 切换语言时同时更新页面状态和本地语言偏好
 	const setLanguage = (language : LanguageCode) => {
 		currentLanguage.value = language
 		setCurrentLanguage(language)
@@ -220,6 +231,7 @@
 			return
 		}
 
+		// 进入提交状态，按钮显示 loading，并清空上一次错误提示
 		form.submitting = true
 		form.errorMessage = ''
 		const payload = {
@@ -235,13 +247,14 @@
 		uni.request({
 			url: getRequestUrl(),
 			method: 'POST',
+			// 设置超时时间，避免服务不可用时页面长时间停在 loading 状态
 			timeout: 10000,
 			header: {
 				'Content-Type': 'application/json',
 			},
 			data: payload,
 			success: (res) => {
-				//// 请求成功，处理后端返回结果
+				// 请求成功，处理后端返回结果
 				const data = res.data as any
 				// 登录返回 200，注册返回 201；两者成功后都走同一个本地保存和跳转流程
 				if ((res.statusCode == 200 || res.statusCode == 201) && data != null && data.user != null && typeof data.token == 'string') {
@@ -249,18 +262,21 @@
 					return
 				}
 
+				// 401 表示账号或密码不匹配
 				if (res.statusCode == 401) {
 					form.errorMessage = copy.value.invalidAuthError
 					form.submitting = false
 					return
 				}
 
+				// 409 表示注册时用户名已经被占用
 				if (res.statusCode == 409) {
 					form.errorMessage = copy.value.usernameExistsError
 					form.submitting = false
 					return
 				}
 
+				// 400 表示用户名或密码没有通过后端长度规则
 				if (res.statusCode == 400) {
 					form.errorMessage = copy.value.ruleError
 					form.submitting = false
@@ -271,12 +287,12 @@
 				form.submitting = false
 			},
 			fail: () => {
-				//// 请求失败
+				// 网络错误、后端未启动或请求超时时会进入这里
 				form.errorMessage = copy.value.serverUnavailableError
 				form.submitting = false
 			},
 			complete: () => {
-				// // 无论成功失败都会执行
+				// 兜底关闭 loading，防止异常分支遗漏提交状态复位
 				if (form.submitting) {
 					form.submitting = false
 				}

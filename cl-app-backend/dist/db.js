@@ -22,11 +22,11 @@ const node_path_1 = __importDefault(require("node:path"));
 const node_sqlite_1 = require("node:sqlite");
 const roles_1 = require("./roles");
 /**app.db 的路径按“候选路径优先级”选择resolveDatabasePathCandidates()
- -> 得到一组候选 app.db 路径
- -> openDatabaseWithFallback()
- -> 依次尝试打开
- -> 哪个能成功创建/打开 SQLite，就用哪个
- -> 全部失败则回退到 :memory:
+   -> 得到一组候选 app.db 路径
+  -> openDatabaseWithFallback()
+  -> 依次尝试打开
+  -> 哪个能成功创建/打开 SQLite，就用哪个
+  4-> 全部失败则回退到 :memory:
  */
 // 用户类型用于前端展示普通用户或专家用户身份
 exports.USER_TYPES = [
@@ -83,6 +83,7 @@ function initializeDatabaseSchema(db) {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      -- password_hash 保存 salt:scryptHash，不保存用户输入的明文密码
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'user',
       user_type TEXT NOT NULL DEFAULT 'normal',
@@ -157,10 +158,12 @@ const db = bootstrap.db;
 exports.db = db;
 // 预编译常用 SQL，减少重复构造语句并统一字段选择
 const insertUserStatement = db.prepare(`
+  -- 注册用户时写入用户名、密码哈希、角色、用户类型和创建时间
   INSERT INTO users (username, password_hash, role, user_type, created_at)
   VALUES (?, ?, ?, ?, ?)
 `);
 const findUserByUsernameStatement = db.prepare(`
+  -- COLLATE NOCASE 由表结构保证，查询用户名时大小写不敏感
   SELECT id, username, password_hash, role, user_type, created_at
   FROM users
   WHERE username = ?
@@ -172,12 +175,15 @@ const listUsersStatement = db.prepare(`
 `);
 // 密码不保存明文，保存格式为 salt:scryptHash
 function hashPassword(password) {
+    // 每个用户单独生成 salt，避免相同密码得到相同哈希
     const salt = node_crypto_1.default.randomBytes(16).toString("hex");
+    // scrypt 是适合密码存储的慢哈希算法，这里输出 64 字节哈希
     const hash = node_crypto_1.default.scryptSync(password, salt, 64).toString("hex");
     return `${salt}:${hash}`;
 }
 // 用原 salt 重新计算哈希，并用 timingSafeEqual 做安全比较
 function verifyPassword(password, storedPasswordHash) {
+    // 数据库存储格式必须是 salt:hash，不符合格式直接视为校验失败
     const [salt, savedHash] = storedPasswordHash.split(":");
     if (!salt || !savedHash) {
         return false;
@@ -185,6 +191,7 @@ function verifyPassword(password, storedPasswordHash) {
     const hashedBuffer = node_crypto_1.default.scryptSync(password, salt, 64);
     const savedHashBuffer = Buffer.from(savedHash, "hex");
     if (hashedBuffer.length !== savedHashBuffer.length) {
+        // 长度不一致时不能调用 timingSafeEqual，否则会抛异常
         return false;
     }
     return node_crypto_1.default.timingSafeEqual(hashedBuffer, savedHashBuffer);
@@ -204,7 +211,9 @@ function normalizeUserType(userType) {
 // 创建用户时先做密码哈希，再只返回 API 需要的公开字段
 function createUser(username, password, role = "user", userType = "normal") {
     const createdAt = new Date().toISOString();
+    // 注册时先把明文密码转成不可逆哈希，再写入 users.password_hash
     const passwordHash = hashPassword(password);
+    // SQLite 唯一约束会阻止重复用户名，auth.ts 会把该错误转换为 409
     const result = insertUserStatement.run(username, passwordHash, role, userType, createdAt);
     return {
         id: Number(result.lastInsertRowid),
@@ -215,6 +224,7 @@ function createUser(username, password, role = "user", userType = "normal") {
 }
 // 读取完整用户行，登录校验需要 password_hash，其他接口会再裁剪敏感字段
 function findUserByUsername(username) {
+    // 这里返回完整行是为了 authenticateUser 能拿到 password_hash 做密码比对
     const user = findUserByUsernameStatement.get(username) ?? null;
     if (!user) {
         return null;
@@ -228,9 +238,11 @@ function findUserByUsername(username) {
 // 登录时校验用户名和密码，成功后只返回非敏感用户字段
 function authenticateUser(username, password) {
     const user = findUserByUsername(username);
+    // 用户不存在或密码不匹配都返回 null，避免向前端暴露具体失败原因
     if (!user || !verifyPassword(password, user.password_hash)) {
         return null;
     }
+    // 登录成功后不返回 password_hash，只返回认证接口签发 token 需要的用户信息
     return {
         id: user.id,
         username: user.username,

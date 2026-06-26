@@ -75,6 +75,7 @@
 	const statusMap = reactive({} as any)
 	const backendMessage = ref('')
 	const questGroups = ref([] as QuestGroup[])
+	// 任务页只负责目录展示和入口跳转，题目详情与判题逻辑在 quest 页面处理
 	const currentLanguage = ref(getCurrentLanguage() as LanguageCode)
 	const copyMap = {
 		en: {
@@ -107,6 +108,7 @@
 		return copyMap[currentLanguage.value]
 	})
 
+	// 后端题库不可用时展示的本地目录，确保在线测评入口仍能打开基础题目
 	const fallbackQuests : QuestSummary[] = [
 		{ id: 'two-sum', title: 'Two Sum', difficulty: 'Easy', difficultyClass: 'easy', category: 'Array', acceptance: 'Acceptance 49.2%', description: 'Array, hash map, lookup strategy' },
 		{ id: 'contains-duplicate', title: 'Contains Duplicate', difficulty: 'Easy', difficultyClass: 'easy', category: 'Array', acceptance: 'Acceptance 61.4%', description: 'Array, set, duplicate detection' },
@@ -122,6 +124,7 @@
 		{ id: 'number-of-islands', title: 'Number of Islands', difficulty: 'Medium', difficultyClass: 'medium', category: 'Graph DFS', acceptance: 'Acceptance 61.9%', description: 'Grid DFS/BFS, graph traversal' },
 	]
 
+	// 校验后端目录项结构，避免异常目录数据破坏 v-for 渲染
 	const isQuestSummary = (value : any): boolean => {
 		return value != null
 			&& typeof value == 'object'
@@ -148,6 +151,7 @@
 		return copy.value.backendCatalogCategoryPrefix + category + '.'
 	}
 
+	// 将扁平题目目录按分类聚合，并在写入页面状态后同步本地完成状态
 	const applyQuestGroups = (items : QuestSummary[]) => {
 		const byCategory : Record<string, QuestSummary[]> = {}
 		items.forEach((item) => {
@@ -175,6 +179,7 @@
 		loadStatuses()
 	}
 
+	// 后端目录失败时回退到本地目录，并提示当前后端地址
 	const loadFallbackCatalog = () => {
 		backendMessage.value = copy.value.localCatalogMessagePrefix + getApiOrigin() + '.'
 		applyQuestGroups(fallbackQuests)
@@ -188,11 +193,13 @@
 			success: (res) => {
 				const data = res.data as any
 				if (res.statusCode == 200 && data != null && typeof data == 'object' && Array.isArray(data.items) && data.items.every(isQuestSummary)) {
+					// 后端目录有效时清空兜底提示，后台新增题目会直接出现在任务列表
 					backendMessage.value = ''
 					applyQuestGroups(data.items as QuestSummary[])
 					return
 				}
 
+				// 响应成功但结构不符合约定时也使用本地目录，保持页面可用
 				loadFallbackCatalog()
 			},
 			fail: () => {
@@ -216,6 +223,7 @@
 
 	// 打开刷题页前保存当前题目 ID
 	const openQuest = (questId: string) => {
+		// quest 页面从本地存储读取当前题目 ID activeQuestId，再请求对应题目详情
 		uni.setStorageSync(ACTIVE_QUEST_KEY, questId)
 		uni.navigateTo({
 			url: '/pages/quest/quest',

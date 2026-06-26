@@ -4,6 +4,7 @@ import { getApiUrl } from './api.uts'
 const WRONG_QUESTIONS_KEY_PREFIX = 'wrongQuestionCollection::'
 const LOGIN_USER_KEY = 'loggedInUser'
 
+// 练习页传入的题目结构，保存错题时只依赖题干、选项和标准答案
 export type PracticeQuestion = {
 	id : string
 	prompt : string
@@ -11,6 +12,7 @@ export type PracticeQuestion = {
 	correctAnswer : string
 }
 
+// 错题本实际存储的结构，包含所属学习路径和模块，便于按路径分组展示
 export type WrongQuestionItem = {
 	pathId : string
 	pathTitle : string
@@ -22,12 +24,14 @@ export type WrongQuestionItem = {
 	correctAnswer : string
 }
 
+// 错题本页面按学习路径展示，每个分组内保存该路径下的错题列表
 export type WrongQuestionGroup = {
 	pathId : string
 	pathTitle : string
 	items : WrongQuestionItem[]
 }
 
+// 固定学习路径顺序，确保错题本即使某路径暂无错题也会展示空态
 const DEFAULT_PATH_GROUPS = [
 	{ pathId: 'javascript', pathTitle: 'JavaScript' },
 	{ pathId: 'java', pathTitle: 'Java' },
@@ -51,6 +55,7 @@ function getCurrentUsername() : string {
 		return username
 	}
 
+	// 未登录情况下仍允许本地记录错题，统一归到 guest 分组
 	return 'guest'
 }
 
@@ -68,6 +73,7 @@ function syncWrongAnswerSnapshot(
 	moduleTitle : string,
 	wrongCount : number
 ) {
+	// 错题同步只影响后台统计，看板不可用时不阻塞本地错题保存
 	uni.request({
 		url: getApiUrl('/api/analytics/wrong-answers'),
 		method: 'POST',
@@ -97,14 +103,18 @@ export function saveWrongQuestionsForModule(
 	wrongAnswers : string[] = []
 ) {
 	const currentItems = readWrongQuestionItems()
+	// 复制一份再修改，避免直接在原数组引用上操作导致状态不可预期
 	const nextItems = [...currentItems] as WrongQuestionItem[]
 
 	for (let i = 0; i < questions.length; i++) {
 		const question = questions[i]
 		const selectedAnswer = answers[i]
+		// wrongQuestionIds 记录用户作答过程中曾经选错过的题目
 		const wasWrongBefore = wrongQuestionIds.indexOf(question.id) >= 0
+		// wrongAnswers 保存首次错误选项，用于错题本展示“你的答案”
 		const savedWrongAnswer = i < wrongAnswers.length ? wrongAnswers[i] : ''
 		if (selectedAnswer == question.correctAnswer && !wasWrongBefore) {
+			// 本次答对且之前没有错过，不进入错题本
 			continue
 		}
 
@@ -118,6 +128,7 @@ export function saveWrongQuestionsForModule(
 			selectedAnswer: savedWrongAnswer.length > 0 ? savedWrongAnswer : selectedAnswer,
 			correctAnswer: question.correctAnswer,
 		} as WrongQuestionItem
+		// 同一模块同一道题只保留一条错题记录，重复提交时用最新内容覆盖
 		const existingIndex = nextItems.findIndex((item) : boolean => item.moduleId == moduleId && item.questionId == question.id)
 		if (existingIndex >= 0) {
 			nextItems[existingIndex] = nextItem
@@ -127,6 +138,7 @@ export function saveWrongQuestionsForModule(
 	}
 
 	uni.setStorageSync(getWrongQuestionsStorageKey(), nextItems)
+	// 同步的是当前模块剩余错题数量，不是本次新增数量
 	const wrongCount = nextItems.filter((item) : boolean => item.moduleId == moduleId).length
 	syncWrongAnswerSnapshot(getCurrentUsername(), pathId, pathTitle, moduleId, moduleTitle, wrongCount)
 }
@@ -137,6 +149,7 @@ export function getWrongQuestionGroups() : WrongQuestionGroup[] {
 	const groups = [] as WrongQuestionGroup[]
 
 	for (const defaultGroup of DEFAULT_PATH_GROUPS) {
+		// 按 pathId 过滤，保持页面展示顺序与 DEFAULT_PATH_GROUPS 一致
 		groups.push({
 			pathId: defaultGroup.pathId,
 			pathTitle: defaultGroup.pathTitle,

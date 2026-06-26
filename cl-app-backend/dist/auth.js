@@ -59,6 +59,7 @@ router.get("/meta", (_req, res) => {
 });
 // 注册普通用户：创建成功后直接签发 JWT，让用户不需要再登录一次
 router.post("/register", (req, res) => {
+    // 注册和登录共用一套账号密码规则：用户名至少 3 位、密码至少 6 位
     const credentials = parseCredentials(req.body ?? {});
     if (!credentials) {
         return res.status(400).json({
@@ -66,6 +67,7 @@ router.post("/register", (req, res) => {
         });
     }
     if ((0, db_1.findUserByUsername)(credentials.username)) {
+        // 提前检查用户名冲突，给前端返回明确的 409 状态码
         return res.status(409).json({
             message: "username already exists"
         });
@@ -74,7 +76,9 @@ router.post("/register", (req, res) => {
     const requestedRole = (0, roles_1.isUserRole)(req.body?.role) ? req.body.role : "user";
     const role = requestedRole === "admin" ? "user" : requestedRole;
     try {
+        // createUser 内部负责写入用户和密码哈希，接口层不直接保存明文密码
         const user = (0, db_1.createUser)(credentials.username, credentials.password, role);
+        // 注册成功后立即签发 JWT，实现“注册即登录”
         const token = (0, session_1.createSession)(user.username);
         return res.status(201).json({
             message: "registration successful",
@@ -84,6 +88,7 @@ router.post("/register", (req, res) => {
     }
     catch (error) {
         if ((0, db_1.isUniqueConstraintError)(error)) {
+            // 并发注册同名用户时，数据库唯一约束仍然会兜底拦截
             return res.status(409).json({
                 message: "username already exists"
             });
@@ -95,19 +100,23 @@ router.post("/register", (req, res) => {
 });
 // 登录接口：校验密码成功后签发 JWT，并记录一次登录行为
 router.post("/login", (req, res) => {
+    // 先做格式和长度校验，不合规则的请求不会进入密码比对
     const credentials = parseCredentials(req.body ?? {});
     if (!credentials) {
         return res.status(400).json({
             message: "username must be at least 3 characters and password must be at least 6 characters"
         });
     }
+    // authenticateUser 会比对数据库中的密码哈希，成功才返回用户对象
     const user = (0, db_1.authenticateUser)(credentials.username, credentials.password);
     if (!user) {
         return res.status(401).json({
             message: "invalid username or password"
         });
     }
+    // 登录成功后签发新的 JWT，前端后续用它访问需要登录的接口
     const token = (0, session_1.createSession)(user.username);
+    // 记录登录行为，供学习数据分析和后台统计使用
     (0, analyticsStore_1.recordUserActivity)(user.username, "login");
     return res.json({
         message: "login successful",
@@ -115,14 +124,18 @@ router.post("/login", (req, res) => {
         user: buildUserResponse(user)
     });
 });
-// 当前用户接口：必须携带 Authorization: Bearer <JWT>。访问 /api/auth/me 之前，必须先通过 requireAuth
+// 当前用户接口：必须携带 Authorization: Bearer <JWT>
+// 也就是说，在访问 /api/auth/me 之前，必须先通过 requireAuth
 router.get("/me", session_1.requireAuth, (req, res) => {
     return res.json({
+        // req.authUser 由 requireAuth 中间件注入，这里只返回安全的公开字段
         user: buildUserResponse(req.authUser)
     });
 });
 // 公开资料接口：不要求登录，只返回用户名和用户类型，供个人页兜底刷新使用
+//：username--路径参数
 router.get("/profile/:username", (req, res) => {
+    // 个人中心在没有 JWT 时用用户名兜底刷新用户类型
     const username = String(req.params.username || "").trim();
     if (username.length < 3) {
         return res.status(400).json({
@@ -137,6 +150,7 @@ router.get("/profile/:username", (req, res) => {
     }
     return res.json({
         user: {
+            // 公开资料接口只返回个人中心需要的最小字段
             username: user.username,
             userType: user.user_type
         }
@@ -161,12 +175,14 @@ router.get("/users", (0, session_1.requireRole)(["admin"]), (_req, res) => {
             role: user.role,
             userType: user.userType,
             createdAt: user.created_at,
+            // 后台用户管理页用 permissions 展示该角色能访问哪些管理模块
             permissions: (0, session_1.getModulePermissions)(user.role)
         }))
     });
 });
 // 管理员修改指定用户的角色，例如 question_manager、judge_manager、analyst
 router.patch("/users/:username/role", (0, session_1.requireRole)(["admin"]), (req, res) => {
+    // 路径中的 username 决定被修改账号，请求体 role 决定新的后台权限角色
     const username = String(req.params.username || "").trim();
     const role = req.body?.role;
     if (username.length < 3 || !(0, roles_1.isUserRole)(role)) {
@@ -180,6 +196,7 @@ router.patch("/users/:username/role", (0, session_1.requireRole)(["admin"]), (re
             message: "user not found"
         });
     }
+    // 角色更新后重新读取用户，确保返回的是数据库中的最终状态
     (0, db_1.ensureUserRole)(user.username, role);
     const updatedUser = (0, db_1.findUserByUsername)(user.username);
     return res.json({
@@ -207,6 +224,7 @@ router.patch("/users/:username/type", (0, session_1.requireRole)(["admin"]), (re
             message: "user not found"
         });
     }
+    // 管理员修改 normal/expert 后，个人中心和社区专家徽章会在刷新资料时同步
     (0, db_1.ensureUserType)(user.username, userType);
     const updatedUser = (0, db_1.findUserByUsername)(user.username);
     return res.json({

@@ -102,6 +102,7 @@ function sanitizeConfig(candidate) {
     return {
         languages: {
             python: {
+                // 后台传入的字段逐项清洗，缺失或非法时回退默认配置
                 enabled: Boolean(languages.python?.enabled ?? defaults.languages.python.enabled),
                 label: sanitizeString(languages.python?.label, defaults.languages.python.label),
                 dockerImage: sanitizeString(languages.python?.dockerImage, defaults.languages.python.dockerImage),
@@ -116,6 +117,7 @@ function sanitizeConfig(candidate) {
                     : defaults.languages.python.notes
             },
             java: {
+                // Java 同样逐项清洗，避免错误配置直接破坏判题流程
                 enabled: Boolean(languages.java?.enabled ?? defaults.languages.java.enabled),
                 label: sanitizeString(languages.java?.label, defaults.languages.java.label),
                 dockerImage: sanitizeString(languages.java?.dockerImage, defaults.languages.java.dockerImage),
@@ -148,12 +150,15 @@ function sanitizeConfig(candidate) {
 function loadConfigFromDisk() {
     try {
         if (!node_fs_1.default.existsSync(judgeConfigPath)) {
+            // 首次启动没有配置文件时使用内置默认配置
             return defaultJudgeSystemConfig();
         }
         const raw = node_fs_1.default.readFileSync(judgeConfigPath, "utf8");
+        // 读取后仍然走 sanitizeConfig，兼容旧配置或手工修改的文件
         return sanitizeConfig(JSON.parse(raw));
     }
     catch (_error) {
+        // 配置文件损坏时回退默认值，避免后端启动失败
         return defaultJudgeSystemConfig();
     }
 }
@@ -195,6 +200,7 @@ function scheduleQueuedJobs() {
     while (queueWaiters.length > 0 && activeJobs < judgeSystemConfig.resourceLimits.maxConcurrentJobs) {
         const waiter = queueWaiters.shift();
         if (waiter) {
+            // 唤醒一个等待任务，由任务自身进入 running 状态
             waiter();
         }
     }
@@ -208,9 +214,11 @@ function updateJudgeSystemConfig(candidate) {
     const source = candidate && typeof candidate === "object" ? candidate : {};
     judgeSystemConfig = sanitizeConfig({
         ...source,
+        // 每次后台保存配置都会刷新更新时间，前端用它提示当前配置版本
         updatedAt: new Date().toISOString()
     });
     persistConfig(judgeSystemConfig);
+    // historySize 或并发数变化后立即修剪历史并尝试释放排队任务
     trimRecentJobs();
     scheduleQueuedJobs();
     return getJudgeSystemConfig();
@@ -226,6 +234,7 @@ function getResourceLimits() {
 // 把命令模板中的 {source} 和 {entry} 替换为当前语言配置
 function buildCommand(template, language) {
     const config = getLanguageAdminConfig(language);
+    // 命令模板由后台维护，运行时替换为当前语言对应的源码文件和入口名
     return template.map((segment) => segment
         .replaceAll("{source}", config.sourceFileName)
         .replaceAll("{entry}", config.entryPoint));
@@ -260,6 +269,7 @@ async function enqueueJudgeJob(questId, language, mode, runJob) {
     totalSubmitted += 1;
     addOrUpdateRecentJob(job);
     const startJob = async (resolve, reject) => {
+        // 真正开始执行时才占用并发名额
         activeJobs += 1;
         job.status = "running";
         job.startedAt = new Date().toISOString();
@@ -273,6 +283,7 @@ async function enqueueJudgeJob(questId, language, mode, runJob) {
             job.summary = result.summary;
             job.status = result.status === "accepted" ? "completed" : "failed";
             if (job.status === "completed") {
+                // accepted 计入 completed，否则进入 failed，供后台队列面板统计
                 completedCount += 1;
             }
             else {
@@ -291,6 +302,7 @@ async function enqueueJudgeJob(questId, language, mode, runJob) {
             reject(error);
         }
         finally {
+            // 任务结束释放并发名额，并尝试唤醒下一个排队任务
             activeJobs -= 1;
             scheduleQueuedJobs();
         }
@@ -300,9 +312,11 @@ async function enqueueJudgeJob(questId, language, mode, runJob) {
             void startJob(resolve, reject);
         };
         if (activeJobs < judgeSystemConfig.resourceLimits.maxConcurrentJobs) {
+            // 有空闲并发名额时立即执行
             runner();
             return;
         }
+        // 并发已满时进入等待队列，后台可看到 queued 状态
         queueWaiters.push(runner);
         addOrUpdateRecentJob(job);
     });

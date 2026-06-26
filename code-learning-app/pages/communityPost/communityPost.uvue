@@ -55,6 +55,7 @@
 	import { addCommentToPost, getActiveCommunityPostId, getCommentsForPost } from '../../utils/communityPosts.uts'
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 
+	// 帖子详情来自后端公开接口，评论列表来自本地存储
 	const activePostId = ref('')
 	const title = ref('')
 	const badge = ref('Community')
@@ -99,6 +100,7 @@
 		const postId = getActiveCommunityPostId()
 		activePostId.value = postId
 		if (postId.length == 0) {
+			// 没有 active id 通常表示用户直接进入详情页，展示不可用状态
 			title.value = copy.value.postNotFound
 			badge.value = 'Community'
 			meta.value = ''
@@ -115,6 +117,7 @@
 				const data = res.data as any
 				if (res.statusCode == 200 && data != null && data.post != null) {
 					const post = data.post as any
+					// 后端只会返回审核通过的公开帖子字段
 					title.value = String(post.title || '')
 					badge.value = String(post.badge || 'Community')
 					meta.value = String(post.meta || '')
@@ -124,6 +127,7 @@
 					return
 				}
 
+				// 404 或响应格式异常时，不展示旧帖子内容
 				title.value = copy.value.postNotFound
 				badge.value = 'Community'
 				meta.value = ''
@@ -132,6 +136,7 @@
 				tags.value = [] as string[]
 			},
 			fail: () => {
+				// 后端不可达时显示错误文案，并清空帖子展示字段
 				title.value = copy.value.postNotFound
 				badge.value = 'Community'
 				meta.value = ''
@@ -145,6 +150,7 @@
 	// 加载当前帖子的本地评论列表
 	const loadComments = () => {
 		if (activePostId.value.length == 0) {
+			// 没有帖子 id 时不能读取评论
 			comments.value = []
 			return
 		}
@@ -154,15 +160,18 @@
 	// 提交评论并刷新评论区
 	const submitComment = () => {
 		if (activePostId.value.length == 0) {
+			// 帖子不可用时不允许评论
 			return
 		}
 		if (commentInput.value.trim().length == 0) {
+			// 空评论只提示，不写入本地存储
 			uni.showToast({
 				title: copy.value.commentRequired,
 				icon: 'none',
 			})
 			return
 		}
+		// 评论当前只保存在本地，按 postId 隔离
 		addCommentToPost(activePostId.value, commentInput.value)
 		commentInput.value = ''
 		loadComments()

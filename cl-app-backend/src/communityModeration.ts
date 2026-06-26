@@ -11,11 +11,13 @@ import {
 } from "./communityModerationStore";
 
 type ModerationUpdateBody = {
+  // 管理后台提交的新审核状态和审核备注
   status?: unknown;
   moderationNote?: unknown;
 };
 
 type CommunityPostCreateBody = {
+  // 用户端投稿字段，进入审核队列前会做运行时校验和清洗
   title?: unknown;
   content?: unknown;
   tags?: unknown;
@@ -32,12 +34,14 @@ const router = Router();
 // 用户端社区列表只返回已审核通过的帖子
 router.get("/posts", (_req: Request, res: Response) => {
   return res.json({
+    // 只返回 approved 帖子，pending/rejected 不进入用户端列表
     items: listApprovedCommunityPosts()
   });
 });
 
 // 用户端帖子详情同样只能读取已审核通过的内容
 router.get("/posts/:id", (req: Request, res: Response) => {
+  // 详情接口同样通过 store 层限制只能读取 approved 内容
   const post = getApprovedCommunityPostById(String(req.params.id || ""));
 
   if (!post) {
@@ -55,8 +59,10 @@ router.get("/posts/:id", (req: Request, res: Response) => {
 router.post("/posts", (req: Request, res: Response) => {
   const body = (req.body ?? {}) as CommunityPostCreateBody;
   const result = createCommunityPostSubmission(
+    // 非字符串字段统一传空值，让 store 层返回明确的校验错误
     typeof body.title === "string" ? body.title : "",
     typeof body.content === "string" ? body.content : "",
+    // 只保留字符串标签，避免把对象或数字写入审核 JSON
     Array.isArray(body.tags) ? body.tags.filter((tag): tag is string => typeof tag === "string") : [],
     typeof body.author === "string" ? body.author : "Guest"
   );
@@ -76,6 +82,7 @@ router.post("/posts", (req: Request, res: Response) => {
 // 管理员后台读取完整审核队列
 router.get("/admin/posts", requireRole(["admin"]), (_req: AuthedRequest, res: Response) => {
   return res.json({
+    // 管理后台需要看到 pending/approved/rejected 全部状态
     items: listCommunityModerationItems()
   });
 });
@@ -86,6 +93,7 @@ router.patch("/admin/posts/:id/status", requireRole(["admin"]), (req: AuthedRequ
   const body = (req.body ?? {}) as ModerationUpdateBody;
 
   if (!isStatus(body.status)) {
+    // 状态值必须是 pending、approved 或 rejected
     return res.status(400).json({
       message: "valid status is required"
     });
@@ -94,6 +102,7 @@ router.patch("/admin/posts/:id/status", requireRole(["admin"]), (req: AuthedRequ
   const result = updateCommunityModerationStatus(
     itemId,
     body.status,
+    // 审核备注可选，非字符串按空备注处理
     typeof body.moderationNote === "string" ? body.moderationNote : ""
   );
 

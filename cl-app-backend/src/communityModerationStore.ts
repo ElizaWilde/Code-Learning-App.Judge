@@ -10,6 +10,7 @@ import { findUserByUsername, UserType } from "./db";
  */
 export type CommunityModerationStatus = "pending" | "approved" | "rejected";
 
+// 后台审核队列中的完整记录，包含审核状态和备注
 export type CommunityModerationItem = {
   id: string;
   title: string;
@@ -22,6 +23,7 @@ export type CommunityModerationItem = {
   moderationNote: string;
 };
 
+// 用户端社区列表和详情页可见的公开帖子结构，不包含审核备注
 export type PublicCommunityPost = {
   id: string;
   title: string;
@@ -35,6 +37,7 @@ export type PublicCommunityPost = {
 };
 
 type PersistedCommunityModerationStore = {
+  // 兼容 { items: [...] } 新格式；旧格式数组在 loadStore 中单独处理
   items?: unknown;
 };
 
@@ -88,6 +91,7 @@ function isStatus(value: unknown): value is CommunityModerationStatus {
 }
 
 function isStringArray(value: unknown): value is string[] {
+  // tags 必须是字符串数组，防止损坏 JSON 或旧数据污染前端渲染
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
@@ -125,14 +129,17 @@ function cloneItem(item: CommunityModerationItem): CommunityModerationItem {
 function createSummary(content: string): string {
   const trimmed = content.trim();
   if (trimmed.length <= 110) {
+    // 内容较短时直接作为摘要
     return trimmed;
   }
 
+  // 长正文截断成列表页摘要，详情页仍展示完整 content
   return `${trimmed.substring(0, 110)}...`;
 }
 
 // 审核通过的内部记录转换成前端社区页可展示的公开帖子结构
 function toPublicPost(item: CommunityModerationItem): PublicCommunityPost {
+  // 作者类型从用户表实时读取，让管理员修改 expert 身份后社区标识能更新
   const authorRecord = findUserByUsername(item.author);
   return {
     id: item.id,
@@ -151,11 +158,13 @@ function toPublicPost(item: CommunityModerationItem): PublicCommunityPost {
 function loadStore(): CommunityModerationItem[] {
   try {
     if (!fs.existsSync(moderationStorePath)) {
+      // 首次启动没有持久化文件时使用种子数据
       return defaultItems.map(cloneItem);
     }
 
     const raw = fs.readFileSync(moderationStorePath, "utf8");
     const parsed = JSON.parse(raw) as PersistedCommunityModerationStore | unknown[];
+    // 兼容旧版直接保存数组和新版保存 { items } 两种格式
     const items = Array.isArray(parsed)
       ? parsed
       : Array.isArray((parsed as PersistedCommunityModerationStore).items)
@@ -163,8 +172,10 @@ function loadStore(): CommunityModerationItem[] {
         : [];
 
     const normalized = items.filter(isCommunityModerationItem).map(cloneItem);
+    // 文件存在但数据全部无效时回退种子数据，避免社区空白
     return normalized.length > 0 ? normalized : defaultItems.map(cloneItem);
   } catch (_error) {
+    // JSON 损坏或读取失败时回退种子数据，不阻塞后端启动
     return defaultItems.map(cloneItem);
   }
 }
@@ -180,6 +191,7 @@ let moderationItems = loadStore();
 // 后台审核页查看完整审核队列，按提交时间倒序排列
 export function listCommunityModerationItems(): CommunityModerationItem[] {
   return moderationItems
+    // 返回副本并倒序排列，最新投稿在后台审核页最上方
     .map(cloneItem)
     .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
 }
@@ -187,6 +199,7 @@ export function listCommunityModerationItems(): CommunityModerationItem[] {
 // 用户端社区列表只展示已通过审核的帖子
 export function listApprovedCommunityPosts(): PublicCommunityPost[] {
   return moderationItems
+    // 用户端只展示审核通过的帖子
     .filter((item) => item.status === "approved")
     .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt))
     .map((item) => toPublicPost(cloneItem(item)));
@@ -195,6 +208,7 @@ export function listApprovedCommunityPosts(): PublicCommunityPost[] {
 // 帖子详情页同样只允许读取已通过审核的帖子
 export function getApprovedCommunityPostById(postId: string): PublicCommunityPost | null {
   const normalizedId = postId.trim();
+  // 即使知道 pending/rejected 的 id，也不能通过详情接口读取
   const item = moderationItems.find((entry) => entry.id === normalizedId && entry.status === "approved");
   return item ? toPublicPost(cloneItem(item)) : null;
 }
@@ -206,10 +220,12 @@ export function createCommunityPostSubmission(
   tags: string[],
   author: string
 ): { ok: true; item: CommunityModerationItem } | { ok: false; message: string } {
+  // 投稿字段统一 trim，避免把纯空格标题或正文写入审核队列
   const normalizedTitle = title.trim();
   const normalizedContent = content.trim();
   const normalizedAuthor = author.trim().length > 0 ? author.trim() : "Guest";
   const normalizedTags = tags
+    // 标签统一小写，便于社区列表页趋势统计和搜索匹配
     .map((tag) => tag.trim().toLowerCase())
     .filter((tag) => tag.length > 0);
 
@@ -222,6 +238,7 @@ export function createCommunityPostSubmission(
 
   const now = new Date();
   const item: CommunityModerationItem = {
+    // 使用时间戳生成帖子 id，用户端详情和后台审核都以它定位记录
     id: `post-${Date.now()}`,
     title: normalizedTitle,
     summary: createSummary(normalizedContent),
@@ -229,10 +246,12 @@ export function createCommunityPostSubmission(
     author: normalizedAuthor,
     tags: normalizedTags,
     submittedAt: now.toISOString(),
+    // 新投稿默认 pending，管理员审核通过后才会出现在公开列表
     status: "pending",
     moderationNote: ""
   };
 
+  // 新投稿放到队列头部，后台审核页优先看到最新内容
   moderationItems = [item, ...moderationItems];
   persistStore();
 
@@ -266,6 +285,7 @@ export function updateCommunityModerationStatus(
 
   moderationItems[index] = {
     ...moderationItems[index],
+    // 状态变为 approved 后用户端可见；rejected/pending 时用户端不可见
     status,
     moderationNote: moderationNote.trim()
   };

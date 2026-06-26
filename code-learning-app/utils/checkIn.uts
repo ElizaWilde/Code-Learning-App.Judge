@@ -2,11 +2,13 @@
 const CHECK_IN_KEY_PREFIX = 'practiceCheckIn::'
 const LOGIN_USER_KEY = 'loggedInUser'
 
+// 每天一条打卡记录，count 当前只表示当天是否完成过练习
 export type CheckInRecord = {
 	date : string
 	count : number
 }
 
+// 热力图单元格：level 负责映射不同颜色深浅
 export type HeatmapCell = {
 	key : string
 	date : string
@@ -14,6 +16,7 @@ export type HeatmapCell = {
 	level : number
 }
 
+// 个人中心展示的打卡摘要
 export type CheckInSummary = {
 	streak : number
 	totalDays : number
@@ -31,10 +34,12 @@ function getCurrentUsername() : string {
 }
 
 function getCheckInStorageKey() : string {
+	// 按用户隔离打卡记录，避免多人登录同一设备时数据混用
 	return CHECK_IN_KEY_PREFIX + getCurrentUsername()
 }
 
 function formatDateKey(date : Date) : string {
+	// 使用 YYYY-MM-DD 作为本地存储 key，便于按天查找和连续天数计算
 	const year = date.getFullYear()
 	const month = String(date.getMonth() + 1).padStart(2, '0')
 	const day = String(date.getDate()).padStart(2, '0')
@@ -51,6 +56,7 @@ function readCheckInRecords() : CheckInRecord[] {
 }
 
 function getLevel(count : number) : number {
+	// level 预留 0-4 五档颜色；当前 count 会被归一到 0 或 1
 	if (count <= 0) {
 		return 0
 	}
@@ -75,6 +81,7 @@ export function recordTodayCheckIn() {
 
 	for (const record of records) {
 		if (record.date == todayKey) {
+			// 当天重复练习仍只记录为打卡完成，不累加次数
 			nextRecords.push({
 				date: record.date,
 				count: 1,
@@ -85,11 +92,13 @@ export function recordTodayCheckIn() {
 
 		nextRecords.push({
 			date: record.date,
+			// 旧数据只保留是否打过卡，避免异常 count 影响热力图颜色
 			count: Number(record.count || 0) > 0 ? 1 : 0,
 		})
 	}
 
 	if (!matched) {
+		// 今天第一次练习时新增当天记录
 		nextRecords.push({
 			date: todayKey,
 			count: 1,
@@ -105,6 +114,7 @@ export function getCheckInSummary(daySpan : number = 84) : CheckInSummary {
 	const countsByDate = {} as UTSJSONObject
 
 	for (const record of records) {
+		// 转成日期索引表，后面生成连续日期窗口时可以 O(1) 查找
 		countsByDate[record.date] = Number(record.count || 0)
 	}
 
@@ -117,6 +127,7 @@ export function getCheckInSummary(daySpan : number = 84) : CheckInSummary {
 		const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - offset)
 		const dateKey = formatDateKey(currentDate)
 		const count = Number(countsByDate[dateKey] || 0)
+		// 从最早日期到今天生成固定长度单元格，保证热力图网格稳定
 		cells.push({
 			key: dateKey,
 			date: dateKey,
@@ -130,6 +141,7 @@ export function getCheckInSummary(daySpan : number = 84) : CheckInSummary {
 		const dateKey = formatDateKey(currentDate)
 		const count = Number(countsByDate[dateKey] || 0)
 		if (count > 0 && countingStreak) {
+			// 从今天往前连续计数，遇到第一个未打卡日后停止
 			streak += 1
 			continue
 		}
@@ -139,6 +151,7 @@ export function getCheckInSummary(daySpan : number = 84) : CheckInSummary {
 	let totalDays = 0
 	for (const record of records) {
 		if (Number(record.count || 0) > 0) {
+			// 累计打卡天数统计所有历史记录，不限最近 12 周
 			totalDays += 1
 		}
 	}

@@ -8,6 +8,7 @@ import type { JudgeResponse } from "./judgeService";
 export type JudgeMode = "run" | "submit";
 export type QueueJobStatus = "queued" | "running" | "completed" | "failed";
 
+// 后台可编辑的单语言判题配置
 export type JudgeLanguageAdminConfig = {
   enabled: boolean;
   label: string;
@@ -19,6 +20,7 @@ export type JudgeLanguageAdminConfig = {
   notes: string;
 };
 
+// 后台可编辑的判题资源限制和队列参数
 export type JudgeResourceLimits = {
   compileTimeoutMs: number;
   runTimeoutMs: number;
@@ -29,12 +31,14 @@ export type JudgeResourceLimits = {
   queueAlertThreshold: number;
 };
 
+// 完整判题系统配置，保存到 judge-config.json
 export type JudgeSystemConfig = {
   languages: Record<JudgeLanguage, JudgeLanguageAdminConfig>;
   resourceLimits: JudgeResourceLimits;
   updatedAt: string;
 };
 
+// 后台队列面板展示的单个任务快照
 export type JudgeQueueJobSnapshot = {
   id: string;
   questId: string;
@@ -48,6 +52,7 @@ export type JudgeQueueJobSnapshot = {
   summary: string;
 };
 
+// 后台队列面板展示的整体队列统计
 export type JudgeQueueSnapshot = {
   activeCount: number;
   queuedCount: number;
@@ -159,6 +164,7 @@ function sanitizeConfig(candidate: unknown): JudgeSystemConfig {
   return {
     languages: {
       python: {
+        // 后台传入的字段逐项清洗，缺失或非法时回退默认配置
         enabled: Boolean((languages as Partial<Record<JudgeLanguage, JudgeLanguageAdminConfig>>).python?.enabled ?? defaults.languages.python.enabled),
         label: sanitizeString((languages as Partial<Record<JudgeLanguage, JudgeLanguageAdminConfig>>).python?.label, defaults.languages.python.label),
         dockerImage: sanitizeString((languages as Partial<Record<JudgeLanguage, JudgeLanguageAdminConfig>>).python?.dockerImage, defaults.languages.python.dockerImage),
@@ -173,6 +179,7 @@ function sanitizeConfig(candidate: unknown): JudgeSystemConfig {
           : defaults.languages.python.notes
       },
       java: {
+        // Java 同样逐项清洗，避免错误配置直接破坏判题流程
         enabled: Boolean((languages as Partial<Record<JudgeLanguage, JudgeLanguageAdminConfig>>).java?.enabled ?? defaults.languages.java.enabled),
         label: sanitizeString((languages as Partial<Record<JudgeLanguage, JudgeLanguageAdminConfig>>).java?.label, defaults.languages.java.label),
         dockerImage: sanitizeString((languages as Partial<Record<JudgeLanguage, JudgeLanguageAdminConfig>>).java?.dockerImage, defaults.languages.java.dockerImage),
@@ -206,12 +213,15 @@ function sanitizeConfig(candidate: unknown): JudgeSystemConfig {
 function loadConfigFromDisk(): JudgeSystemConfig {
   try {
     if (!fs.existsSync(judgeConfigPath)) {
+      // 首次启动没有配置文件时使用内置默认配置
       return defaultJudgeSystemConfig();
     }
 
     const raw = fs.readFileSync(judgeConfigPath, "utf8");
+    // 读取后仍然走 sanitizeConfig，兼容旧配置或手工修改的文件
     return sanitizeConfig(JSON.parse(raw));
   } catch (_error) {
+    // 配置文件损坏时回退默认值，避免后端启动失败
     return defaultJudgeSystemConfig();
   }
 }
@@ -260,6 +270,7 @@ function scheduleQueuedJobs(): void {
   while (queueWaiters.length > 0 && activeJobs < judgeSystemConfig.resourceLimits.maxConcurrentJobs) {
     const waiter = queueWaiters.shift();
     if (waiter) {
+      // 唤醒一个等待任务，由任务自身进入 running 状态
       waiter();
     }
   }
@@ -275,9 +286,11 @@ export function updateJudgeSystemConfig(candidate: unknown): JudgeSystemConfig {
   const source = candidate && typeof candidate === "object" ? candidate : {};
   judgeSystemConfig = sanitizeConfig({
     ...source,
+    // 每次后台保存配置都会刷新更新时间，前端用它提示当前配置版本
     updatedAt: new Date().toISOString()
   });
   persistConfig(judgeSystemConfig);
+  // historySize 或并发数变化后立即修剪历史并尝试释放排队任务
   trimRecentJobs();
   scheduleQueuedJobs();
   return getJudgeSystemConfig();
@@ -297,6 +310,7 @@ export function getResourceLimits(): JudgeResourceLimits {
 export function buildCommand(template: string[], language: JudgeLanguage): string[] {
   const config = getLanguageAdminConfig(language);
 
+  // 命令模板由后台维护，运行时替换为当前语言对应的源码文件和入口名
   return template.map((segment) =>
     segment
       .replaceAll("{source}", config.sourceFileName)
@@ -342,6 +356,7 @@ export async function enqueueJudgeJob(
   addOrUpdateRecentJob(job);
 
   const startJob = async (resolve: (value: JudgeResponse) => void, reject: (reason?: unknown) => void) => {
+    // 真正开始执行时才占用并发名额
     activeJobs += 1;
     job.status = "running";
     job.startedAt = new Date().toISOString();
@@ -358,6 +373,7 @@ export async function enqueueJudgeJob(
       job.status = result.status === "accepted" ? "completed" : "failed";
 
       if (job.status === "completed") {
+        // accepted 计入 completed，否则进入 failed，供后台队列面板统计
         completedCount += 1;
       } else {
         failedCount += 1;
@@ -374,6 +390,7 @@ export async function enqueueJudgeJob(
       addOrUpdateRecentJob(job);
       reject(error);
     } finally {
+      // 任务结束释放并发名额，并尝试唤醒下一个排队任务
       activeJobs -= 1;
       scheduleQueuedJobs();
     }
@@ -385,10 +402,12 @@ export async function enqueueJudgeJob(
     };
 
     if (activeJobs < judgeSystemConfig.resourceLimits.maxConcurrentJobs) {
+      // 有空闲并发名额时立即执行
       runner();
       return;
     }
 
+    // 并发已满时进入等待队列，后台可看到 queued 状态
     queueWaiters.push(runner);
     addOrUpdateRecentJob(job);
   });

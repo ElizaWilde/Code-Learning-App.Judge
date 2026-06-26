@@ -16,6 +16,7 @@ type JwtPayload = {
 };
 
 type AuthenticatedUser = {
+  // 认证通过后挂到 req.authUser 的用户信息，供后续接口直接读取
   id: number;
   username: string;
   role: UserRole;
@@ -23,18 +24,22 @@ type AuthenticatedUser = {
 };
 
 const JWT_SECRET = process.env.CODEBOX_JWT_SECRET?.trim() || "codebox-local-dev-secret";
+// 默认有效期为 7 天，可通过 CODEBOX_JWT_EXPIRES_IN_SECONDS 调整
 const JWT_EXPIRES_IN_SECONDS = Number(process.env.CODEBOX_JWT_EXPIRES_IN_SECONDS || 60 * 60 * 24 * 7);
 // JWT 本身是无状态的；为了支持退出登录立即失效，这里记录已吊销的 jti
 const revokedTokenIds = new Map<string, number>();
 
 export type AuthedRequest = Request & {
+  // requireAuth 校验通过后写入，业务接口可通过它获取当前登录用户
   authUser?: AuthenticatedUser;
 };
 
 // 登录/注册成功后签发 JWT，前端会把它保存到 authToken 并放进 Authorization 请求头
 export function createSession(username: string): string {
   return signJwt({
+    // sub 存用户名，后续验证 token 时用它重新查数据库用户
     sub: username,
+    // 每个 token 独立生成 jti，退出登录时只吊销当前这一个 token
     jti: crypto.randomUUID(),
     iat: currentUnixTime(),
     exp: currentUnixTime() + getTokenLifetimeSeconds()
@@ -65,11 +70,13 @@ export function getRequestToken(req: Request): string | null {
 
 // 校验 JWT 后再从数据库加载用户，确保用户仍然存在且角色信息是最新的
 function resolveSessionUser(token: string): AuthenticatedUser | null {
+  // 先验签和检查过期，再判断是否已被退出登录流程吊销
   const payload = verifyJwt(token);
   if (!payload || isTokenRevoked(payload)) {
     return null;
   }
 
+  // token 中只存用户名，权限和用户类型每次从数据库取最新值
   const user = findUserByUsername(payload.sub);
   if (!user) {
     return null;
@@ -88,21 +95,25 @@ function resolveSessionUser(token: string): AuthenticatedUser | null {
 export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): void {
   const token = getRequestToken(req);
   if (!token) {
+    // 没有 Bearer token，说明请求没有携带登录凭证
     res.status(401).json({ message: "missing bearer token" });
     return;
   }
 
   const user = resolveSessionUser(token);
   if (!user) {
+    // token 伪造、过期、已吊销或用户不存在都会走这个分支
     res.status(401).json({ message: "invalid or expired token" });
     return;
   }
 
+  // 把当前用户挂到请求对象上，后续路由无需重复解析 token
   req.authUser = user;
   next();
 }
 
 export function getModulePermissions(role: UserRole): string[] {
+  // 根据角色返回后台模块权限列表，前端用它控制可见菜单
   return MODULE_PERMISSIONS[role];
 }
 
@@ -124,6 +135,7 @@ export function requireRole(allowedRoles: UserRole[]) {
 
 // 生成标准三段式 JWT：base64url(header).base64url(payload).signature
 function signJwt(payload: JwtPayload): string {
+  // 这里固定使用 HS256，与 verifyJwt 中的 header 校验保持一致
   const header = {
     alg: "HS256",
     typ: "JWT"
@@ -139,10 +151,12 @@ function signJwt(payload: JwtPayload): string {
 function verifyJwt(token: string): JwtPayload | null {
   const parts = token.split(".");
   if (parts.length !== 3) {
+    // JWT 必须是 header.payload.signature 三段
     return null;
   }
 
   const [encodedHeader, encodedPayload, signature] = parts;
+  // 用同样的 header.payload 重新计算签名，确认 token 没有被篡改
   const expectedSignature = sign(`${encodedHeader}.${encodedPayload}`);
   if (!timingSafeEqual(signature, expectedSignature)) {
     return null;
@@ -155,10 +169,12 @@ function verifyJwt(token: string): JwtPayload | null {
 
   const payload = decodeJson<Record<string, unknown>>(encodedPayload);
   if (!isJwtPayload(payload)) {
+    // payload 字段缺失或类型不对时按无效 token 处理
     return null;
   }
 
   if (payload.exp <= currentUnixTime()) {
+    // 过期 token 不再允许访问受保护接口
     return null;
   }
 

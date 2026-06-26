@@ -80,6 +80,7 @@ function loadPersistedQuestStore() {
         const questPayload = "quests" in parsed && parsed.quests && typeof parsed.quests === "object"
             ? parsed.quests
             : parsed;
+        // 兼容旧格式：旧文件可能直接是题目 map，新格式才有 deletedIds
         const deletedIds = Array.isArray(parsed.deletedIds)
             ? parsed.deletedIds
                 .filter((entry) => typeof entry === "string" && entry.trim().length > 0)
@@ -89,6 +90,7 @@ function loadPersistedQuestStore() {
         const result = {};
         for (const [id, quest] of entries) {
             if (!isQuestDefinition(quest)) {
+                // 损坏或字段不完整的题目跳过，避免破坏后台和用户端题库
                 continue;
             }
             result[id] = normalizeQuest(quest);
@@ -105,6 +107,7 @@ function loadPersistedQuestStore() {
 // 每次新增、修改或删除题目后，把内存状态写回 quests.json
 function persistQuestMap() {
     node_fs_1.default.mkdirSync(node_path_1.default.dirname(questStorePath), { recursive: true });
+    // 同时保存后台维护题目和内置题目的删除标记
     node_fs_1.default.writeFileSync(questStorePath, JSON.stringify({
         quests: persistedQuestMap,
         deletedIds: Array.from(deletedQuestIds)
@@ -115,11 +118,13 @@ let persistedQuestMap = loadedQuestStore.quests;
 let deletedQuestIds = new Set(loadedQuestStore.deletedIds);
 // 最终题库等于内置题库加后台覆盖题库，再移除后台删除标记
 function mergedQuestMap() {
+    // persistedQuestMap 会覆盖同 id 的内置题目，实现后台编辑内置题目的效果
     const merged = {
         ...judgeCatalog_1.questCatalog,
         ...persistedQuestMap
     };
     deletedQuestIds.forEach((questId) => {
+        // 删除内置题目时不改源码，只在合并结果中隐藏
         delete merged[questId];
     });
     return merged;
@@ -169,6 +174,7 @@ function upsertQuestDefinition(candidate) {
     if (!validated.ok) {
         return validated;
     }
+    // 如果之前删除过同 ID 题目，重新保存时撤销删除标记
     deletedQuestIds.delete(validated.quest.id);
     persistedQuestMap[validated.quest.id] = validated.quest;
     persistQuestMap();
@@ -193,6 +199,7 @@ function deleteQuestDefinition(questId) {
             message: "Quest not found."
         };
     }
+    // 后台维护题目直接删除覆盖记录；内置题目通过 deletedIds 隐藏
     delete persistedQuestMap[normalizedQuestId];
     deletedQuestIds.add(normalizedQuestId);
     persistQuestMap();

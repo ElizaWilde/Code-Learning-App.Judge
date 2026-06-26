@@ -7,6 +7,7 @@
 			<text class="subtitle">{{ copy.subtitle }}</text>
 		</view>
 
+		<!-- 推荐学习路径：作为学习中心的主入口，点击后进入 AI 基础路径页 -->
 		<view class="feature-card primary">
 			<text class="card-kicker">{{ copy.recommended }}</text>
 			<text class="card-title">{{ copy.aiPathTitle }}</text>
@@ -14,6 +15,7 @@
 			<button class="action" @tap="openPath('/pages/aiBasics/aiBasics')">{{ copy.startPath }}</button>
 		</view>
 
+		<!-- 四个学习方向入口：每张卡片跳转到对应学习路径总览页 -->
 		<view class="section">
 			<text class="section-title">{{ copy.learningPaths }}</text>
 			<view class="mini-card" @tap="openPath('/pages/javascript/javascript')">
@@ -40,6 +42,7 @@
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 
 	type LanguageCode = 'en' | 'zh'
+	// 学习中心所有可切换文案的结构，确保中英文 copyMap 字段一致
 	type StudyCopy = {
 		eyebrow: string
 		title: string
@@ -56,7 +59,9 @@
 		aiPathListCopy: string
 	}
 
+	// 当前语言从本地偏好读取，onShow 时会再次同步，保证返回本页时文案最新
 	const currentLanguage = ref(getCurrentLanguage() as LanguageCode)
+	// 学习中心文案表：页面只从 copy 读取文案，方便后续扩展语言
 	const copyMap = {
 		en: {
 			eyebrow: 'Study',
@@ -90,11 +95,11 @@
 		},
 	} as Record<LanguageCode, StudyCopy>
 
+	// 根据当前语言动态选择文案，currentLanguage 变化时页面自动刷新
 	const copy = computed(() : StudyCopy => {
 		return copyMap[currentLanguage.value]
 	})
 
-	// Open the selected learning path as a normal detail page from the Study tab.
 	// 点击学习路径卡片后跳转到对应方向的学习路径页
 	const openPath = (url : string) => {
 		uni.navigateTo({

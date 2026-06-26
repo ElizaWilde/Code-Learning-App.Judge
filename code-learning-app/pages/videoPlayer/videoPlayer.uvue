@@ -6,9 +6,11 @@
 <script setup lang="uts">
 	import { ACTIVE_VIDEO_URL_KEY, toWebVideoPlayerUrl } from '../../utils/studyMedia.uts'
 
+	// web-view 实际加载的播放地址，onLoad 时从本地存储读取并转换
 	const videoUrl = ref('')
 
 	onLoad(() => {
+		// 学习模块打开视频前会保存原始视频地址，这里统一转换成可播放地址
 		const savedUrl = uni.getStorageSync(ACTIVE_VIDEO_URL_KEY) as string
 		videoUrl.value = toWebVideoPlayerUrl(savedUrl)
 	})

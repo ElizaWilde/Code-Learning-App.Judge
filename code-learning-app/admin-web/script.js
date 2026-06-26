@@ -849,6 +849,7 @@ async function apiRequest(path, options = {}) {
 	};
 
 	if (token) {
+		// 后台所有受保护接口都通过 Bearer token 识别当前管理员
 		headers.Authorization = `Bearer ${token}`;
 	}
 
@@ -859,6 +860,7 @@ async function apiRequest(path, options = {}) {
 
 	let data = null;
 	try {
+		// 后端约定返回 JSON；解析失败时保留 null，交给调用方显示兜底错误
 		data = await response.json();
 	} catch (_error) {
 		data = null;
@@ -1210,6 +1212,7 @@ function beginNewQuest() {
 // 从后端加载题库列表，成功后刷新目录并选中第一条题目。
 async function loadQuestionBank() {
 	if (!currentPermissions.includes("question-bank")) {
+		// 前端权限拦截只控制体验；真正权限仍由后端 requireRole 校验
 		return;
 	}
 
@@ -1227,6 +1230,7 @@ async function loadQuestionBank() {
 
 		questItems = data.items.sort((left, right) => left.title.localeCompare(right.title));
 		if (!isCreatingQuest) {
+			// 普通浏览模式下自动选中第一道题，避免详情区空白
 			activeQuestId = questItems[0]?.id || "";
 			renderQuestDirectory();
 			const selected = questItems.find((quest) => quest.id === activeQuestId) || questItems[0] || null;
@@ -1245,6 +1249,7 @@ async function loadQuestionBank() {
 async function saveQuest() {
 	const payload = collectQuestForm();
 	if (!payload.ok) {
+		// JSON 测试用例解析失败或字段缺失时不向后端提交
 		questFormStatus.textContent = payload.message;
 		return;
 	}
@@ -1260,6 +1265,7 @@ async function saveQuest() {
 		const endpoint = isCreatingQuest
 			? "/api/judge/admin/quests"
 			: `/api/judge/admin/quests/${encodeURIComponent(payload.value.id)}`;
+		// 新建用 POST，编辑已有题目用 PUT
 		const method = isCreatingQuest ? "POST" : "PUT";
 		const { response, data } = await apiRequest(endpoint, {
 			method,
@@ -1286,6 +1292,7 @@ async function saveQuest() {
 // 删除当前选中的已保存题目，删除前弹出确认，成功后重新加载题库。
 async function deleteQuest() {
 	if (isCreatingQuest) {
+		// 新建草稿还没有后端记录，不需要调用删除接口
 		questFormStatus.textContent = t("dynamic.discardDraft");
 		return;
 	}
@@ -1460,6 +1467,7 @@ function renderAnalyticsSummary(data) {
 // 根据后端统计数据刷新所有图表和汇总卡片。
 function renderAnalyticsDashboard(data) {
 	analyticsSummaryMetrics.innerHTML = "";
+	// 每次刷新前销毁旧图表，避免 ECharts 实例叠加
 	disposeAnalyticsCharts();
 
 	if (typeof window.echarts === "undefined") {
@@ -1479,6 +1487,7 @@ function renderQueueSnapshot(snapshot) {
 	queueMetrics.innerHTML = "";
 	queueJobs.innerHTML = "";
 
+	// 排队数达到阈值时用告警样式提示管理员关注评测积压
 	const queueTone = snapshot.queuedCount >= snapshot.queueAlertThreshold ? "metric-alert" : "";
 	queueMetrics.appendChild(renderMetricCard(t("dynamic.activeJobs"), snapshot.activeCount));
 	queueMetrics.appendChild(renderMetricCard(t("dynamic.queuedJobs"), snapshot.queuedCount, queueTone));
@@ -1534,6 +1543,7 @@ function applyJudgeConfig(config) {
 	const java = config.languages?.java || {};
 	const limits = config.resourceLimits || {};
 
+	// 语言配置决定判题容器镜像、源码文件名、编译命令和运行命令
 	langPythonEnabled.checked = Boolean(python.enabled);
 	langPythonLabel.value = python.label || "";
 	langPythonImage.value = python.dockerImage || "";
@@ -1666,6 +1676,7 @@ function collectJudgeConfigForm() {
 			}
 		},
 		resourceLimits: {
+			// 后端会再次清洗这些数字，前端这里只做表单值到 JSON 的转换
 			compileTimeoutMs: Number(limitCompileTimeout.value),
 			runTimeoutMs: Number(limitRunTimeout.value),
 			maxOutputBufferKb: Number(limitMaxBuffer.value),
@@ -1682,6 +1693,7 @@ async function saveJudgeConfig() {
 	judgeConfigStatus.textContent = t("dynamic.savingJudgeConfig");
 
 	try {
+		// 保存后端判题配置会影响之后进入队列的判题任务
 		const payload = collectJudgeConfigForm();
 		const { response, data } = await apiRequest("/api/judge/admin/config", {
 			method: "POST",
@@ -1778,6 +1790,7 @@ function renderUserDetail(user) {
 	userTypeSelect.value = user.userType || "normal";
 	userDetailPermissions.innerHTML = "";
 
+	// 权限标签来自后端 role -> permissions 映射，用于解释该账号能访问哪些后台模块
 	(user.permissions || []).forEach((permission) => {
 		userDetailPermissions.appendChild(renderTag(getPermissionLabel(permission)));
 	});
@@ -1805,6 +1818,7 @@ async function loadUsers() {
 		renderUserSummary();
 
 		if (!activeUsername && userItems.length > 0) {
+			// 首次进入用户管理时默认选中第一个账号
 			activeUsername = userItems[0].username;
 		}
 
@@ -1831,6 +1845,7 @@ async function saveUserRole() {
 	userRoleStatus.textContent = t("dynamic.savingAccountSettings");
 
 	try {
+		// 角色决定后台模块权限，例如题库、判题、分析、用户和社区审核
 		const roleResult = await apiRequest(`/api/auth/users/${encodeURIComponent(activeUsername)}/role`, {
 			method: "PATCH",
 			body: JSON.stringify({
@@ -1843,6 +1858,7 @@ async function saveUserRole() {
 			return;
 		}
 
+		// 用户类型影响前端专家徽章展示，不等同于后台管理权限
 		const typeResult = await apiRequest(`/api/auth/users/${encodeURIComponent(activeUsername)}/type`, {
 			method: "PATCH",
 			body: JSON.stringify({
@@ -1935,6 +1951,7 @@ function renderModerationDetail(item) {
 	moderationStatusSelect.value = item.status || "pending";
 	moderationNoteInput.value = item.moderationNote || "";
 	moderationDetailTags.innerHTML = "";
+	// 审核状态会决定用户端社区列表是否能看到该帖子
 	const moderationStatusLabel = getModerationStatusLabel(item.status);
 	moderationDetailTags.appendChild(renderTag(`${currentLanguage === "zh" ? "状态" : "status"}: ${moderationStatusLabel}`));
 	(item.tags || []).forEach((tag) => {
@@ -1958,6 +1975,7 @@ async function loadModerationQueue() {
 		renderModerationSummary();
 
 		if (!activeModerationId && moderationItems.length > 0) {
+			// 首次进入审核模块时自动选中最新一条投稿
 			activeModerationId = moderationItems[0].id;
 		}
 
@@ -1984,6 +2002,7 @@ async function saveModerationDecision() {
 	moderationFormStatus.textContent = t("dynamic.savingModerationDecision");
 
 	try {
+		// approved 会让帖子进入用户端社区列表；pending/rejected 不公开展示
 		const { response, data } = await apiRequest(`/api/community/admin/posts/${encodeURIComponent(activeModerationId)}/status`, {
 			method: "PATCH",
 			body: JSON.stringify({
@@ -2013,8 +2032,7 @@ function setActiveModule(moduleId) {
 
 	currentModuleId = moduleId;
 
-	// 事件绑定区：把导航、表单提交、刷新按钮、语言按钮和初始化加载连接到对应业务函数。
-navItems.forEach((item) => {
+	navItems.forEach((item) => {
 		item.classList.toggle("is-active", item.dataset.module === moduleId);
 	});
 
@@ -2023,6 +2041,7 @@ navItems.forEach((item) => {
 	heroCopy.textContent = meta.copy;
 	statusChip.textContent = meta.status;
 	showWorkspace(moduleId);
+	// 离开评测模块时停止轮询，切换回来后再重新开启
 	stopJudgeQueuePolling();
 
 	if (moduleId === "question-bank") {
@@ -2057,10 +2076,10 @@ function applyPermissions(permissions) {
 
 	let firstVisibleModule = null;
 
-	// 事件绑定区：把导航、表单提交、刷新按钮、语言按钮和初始化加载连接到对应业务函数。
-navItems.forEach((item) => {
+	navItems.forEach((item) => {
 		const moduleId = item.dataset.module;
 		const allowed = permissions.includes(moduleId);
+		// 无权限模块直接从左侧导航隐藏
 		item.classList.toggle("is-hidden", !allowed);
 
 		if (allowed && firstVisibleModule === null) {
@@ -2070,6 +2089,7 @@ navItems.forEach((item) => {
 
 	if (firstVisibleModule) {
 		accessMessage.textContent = "";
+		// 进入当前账号第一个可访问模块
 		setActiveModule(firstVisibleModule);
 		return;
 	}
@@ -2096,6 +2116,7 @@ function showLogin() {
 	loginError.textContent = "";
 	roleBadge.textContent = "";
 	accessMessage.textContent = "";
+	// 回到登录页时清空各模块内存状态，避免下一个账号看到上一个账号的数据
 	questItems = [];
 	activeQuestId = "";
 	isCreatingQuest = false;
@@ -2131,6 +2152,7 @@ function showLogin() {
 // 渲染当前登录管理员的角色徽标和权限模块。
 function renderUser(user) {
 	roleBadge.textContent = `${t("common.rolePrefix")} ${getRoleLabel(user.role)}`;
+	// 登录用户返回的 permissions 决定后台侧边栏和默认进入模块
 	applyPermissions(Array.isArray(user.permissions) ? user.permissions : []);
 }
 
@@ -2164,6 +2186,7 @@ async function signIn(username, password) {
 		}
 
 		storeToken(data.token);
+		// 登录成功后立即按当前用户权限渲染后台模块
 		renderUser(data.user);
 		showAdmin();
 	} catch (_error) {

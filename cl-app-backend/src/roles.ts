@@ -11,10 +11,15 @@ export type UserRole = typeof USER_ROLES[number];
 
 // 后台页面根据 permissions 决定显示题库、判题、分析、用户、社区审核哪些模块
 export const MODULE_PERMISSIONS: Record<UserRole, string[]> = {
+  // admin 拥有全部后台模块权限
   admin: ["question-bank", "judge-system", "learning-analytics", "user-management", "community-moderation"],
+  // 题库管理员只能维护题库，不能改判题配置或用户权限
   question_manager: ["question-bank"],
+  // 判题管理员只能维护评测系统配置和队列
   judge_manager: ["judge-system"],
+  // 分析员只能查看学习数据看板
   analyst: ["learning-analytics"],
+  // 普通用户不能进入后台管理模块
   user: []
 };
 

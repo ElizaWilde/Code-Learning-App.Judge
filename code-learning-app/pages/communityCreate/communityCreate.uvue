@@ -41,9 +41,11 @@
 	import { getCurrentUsername } from '../../utils/communityPosts.uts'
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 
+	// 发帖表单状态：标题、正文、标签最终提交到后端审核队列
 	const title = ref('')
 	const content = ref('')
 	const tagsText = ref('')
+	// 防止用户连续点击发布造成重复投稿
 	const submitting = ref(false)
 	const currentLanguage = ref(getCurrentLanguage() as string)
 	const copyMap = {
@@ -90,6 +92,7 @@
 		const trimmedTitle = title.value.trim()
 		const trimmedContent = content.value.trim()
 		if (trimmedTitle.length == 0 || trimmedContent.length == 0) {
+			// 标题和正文是后端创建投稿的最低要求
 			uni.showToast({
 				title: copy.value.requiredError,
 				icon: 'none',
@@ -98,10 +101,12 @@
 		}
 
 		if (submitting.value) {
+			// 上一次请求还没结束时忽略重复点击
 			return
 		}
 
 		submitting.value = true
+		// 标签用英文逗号分隔，提交前去掉空标签
 		const tags = tagsText.value.split(',').map((tag) : string => tag.trim()).filter((tag) : boolean => tag.length > 0)
 		uni.request({
 			url: getApiUrl('/api/community/posts'),
@@ -114,10 +119,12 @@
 				title: trimmedTitle,
 				content: trimmedContent,
 				tags,
+				// 作者来自本地登录信息；未登录时工具函数会返回 Guest
 				author: getCurrentUsername(),
 			},
 			success: (res) => {
 				if (res.statusCode == 201) {
+					// 投稿成功后仍需后台审核，所以提示“已提交审核”
 					uni.showToast({
 						title: copy.value.submittedSuccess,
 						icon: 'success',
@@ -140,6 +147,7 @@
 				})
 			},
 			complete: () => {
+				// 请求结束后允许再次提交
 				submitting.value = false
 			},
 		})

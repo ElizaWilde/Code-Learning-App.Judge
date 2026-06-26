@@ -66,9 +66,11 @@
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 	import { getTotalWrongQuestionCount } from '../../utils/wrongQuestions.uts'
 
+	// 登录页写入这些 key，个人中心用它们恢复用户名、用户类型和 JWT
 	const LOGIN_USER_KEY = 'loggedInUser'
 	const LOGIN_USER_TYPE_KEY = 'loggedInUserType'
 	const AUTH_TOKEN_KEY = 'authToken'
+	// 默认值用于未登录或资料接口不可达时兜底显示
 	const username = ref('Guest')
 	const userType = ref('normal')
 	const currentLanguage = ref(getCurrentLanguage() as string)
@@ -121,6 +123,7 @@
 
 	// 刷新个人中心展示的错题总数
 	const loadWrongQuestionCollection = () => {
+		// 错题按用户隔离，工具函数会自动读取当前登录用户对应的数据
 		totalWrongQuestionCount.value = getTotalWrongQuestionCount()
 	}
 
@@ -135,12 +138,14 @@
 		for (const cell of summary.cells) {
 			currentColumn.push(cell)
 			if (currentColumn.length == 7) {
+				// 热力图按 7 天一列展示，形成最近 12 周的网格
 				columns.push(currentColumn)
 				currentColumn = [] as any[]
 			}
 		}
 
 		if (currentColumn.length > 0) {
+			// daySpan 不是 7 的整数倍时保留最后一列；默认 84 天通常不会触发
 			columns.push(currentColumn)
 		}
 
@@ -148,12 +153,14 @@
 	}
 
 	const goToReminderSettings = () => {
+		// 每日提醒设置独立页面管理，个人中心只负责入口
 		uni.navigateTo({
 			url: '/pages/reminder-settings/reminder-settings'
 		})
 	}
 
 	const goToWrongQuestions = () => {
+		// 错题本页面会重新读取分组和总数，保证数据最新
 		uni.navigateTo({
 			url: '/pages/wrongQuestions/wrongQuestions'
 		})
@@ -165,6 +172,7 @@
 		const savedUsername = (uni.getStorageSync(LOGIN_USER_KEY) as string).trim()
 		if (token.length == 0) {
 			if (savedUsername.length == 0) {
+				// 没有 token 也没有用户名时，只能使用本地用户类型兜底
 				userType.value = getCurrentUserType()
 				return
 			}
@@ -175,16 +183,20 @@
 				success: (res) => {
 					const data = res.data as any
 					if (res.statusCode == 200 && data != null && data.user != null) {
+						// profile 公开接口不要求 JWT，用于 token 缺失时刷新用户名和专家身份
 						username.value = String(data.user.username || savedUsername)
 						userType.value = String(data.user.userType || 'normal')
+						// 写回本地，社区作者标识和个人中心专家徽章都依赖这个值
 						uni.setStorageSync(LOGIN_USER_KEY, username.value)
 						uni.setStorageSync(LOGIN_USER_TYPE_KEY, userType.value)
 						return
 					}
 
+					// 公开资料接口失败时保留本地用户类型，避免页面闪成空状态
 					userType.value = getCurrentUserType()
 				},
 				fail: () => {
+					// 后端不可达时仍允许个人中心展示本地资料
 					userType.value = getCurrentUserType()
 				},
 			})
@@ -195,11 +207,13 @@
 			url: getApiUrl('/api/auth/me'),
 			method: 'GET',
 			header: {
+				// /api/auth/me 需要 JWT，能返回当前用户的最新角色和用户类型
 				'Authorization': 'Bearer ' + token,
 			},
 			success: (res) => {
 				const data = res.data as any
 				if (res.statusCode == 200 && data != null && data.user != null) {
+					// 以服务端数据为准，处理管理员刚修改专家身份的情况
 					username.value = String(data.user.username || username.value)
 					userType.value = String(data.user.userType || 'normal')
 					uni.setStorageSync(LOGIN_USER_KEY, username.value)
@@ -207,6 +221,7 @@
 				}
 			},
 			fail: () => {
+				// JWT 请求失败时不清登录，只回退本地用户类型
 				userType.value = getCurrentUserType()
 			},
 		})
@@ -215,6 +230,7 @@
 	onLoad(() => {
 		const savedUsername = uni.getStorageSync(LOGIN_USER_KEY) as string
 		if (savedUsername.length > 0) {
+			// 先用本地用户名快速渲染，再异步刷新服务端资料
 			username.value = savedUsername
 		}
 		userType.value = getCurrentUserType()
@@ -225,6 +241,7 @@
 
 	onShow(() => {
 		currentLanguage.value = getCurrentLanguage()
+		// 返回个人中心时刷新用户类型、错题数量和打卡热力图
 		userType.value = getCurrentUserType()
 		refreshProfile()
 		loadWrongQuestionCollection()
@@ -233,6 +250,7 @@
 
 	// 清理本地登录信息并回到登录页
 	const logout = () => {
+		// 当前前端退出只清本地会话；后端 token 吊销由后台/接口能力支持
 		uni.removeStorageSync(LOGIN_USER_KEY)
 		uni.removeStorageSync(LOGIN_USER_TYPE_KEY)
 		uni.removeStorageSync(AUTH_TOKEN_KEY)

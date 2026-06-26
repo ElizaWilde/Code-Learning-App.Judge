@@ -26,6 +26,7 @@
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 	import { openStudyModule } from '../../utils/studyModule.uts'
 
+	// 当前练习模块最高分，JavaScript 路径页读取它显示完成状态
 	const SCORE_KEY = 'javascriptFunctionsPracticeScore'
 	const currentLanguage = ref(getCurrentLanguage() as string)
 	const copyMap = {
@@ -33,6 +34,7 @@
 		zh: { eyebrow: 'JavaScript 练习', title: '函数与流程控制测验', subtitle: '为每道题选择最佳答案。', submit: '提交答案', nextModule: '下一模块', incorrect: '回答错误，正确答案：', answerAll: '请先完成所有题目。', scorePrefix: '你答对了 ', scoreMiddle: ' / 3 题。' },
 	}
 	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
+	// 题目文案按语言切换，题目 id 保持稳定，便于错题本去重
 	const questions = computed(() => currentLanguage.value == 'zh'
 		? [
 			{ id: 'js-functions-q1', prompt: '1. 函数的主要作用是什么？', options: [{ key: 'A', label: 'A. 复用逻辑' }, { key: 'B', label: 'B. 设置界面样式' }, { key: 'C', label: 'C. 存储 CSS 规则' }], correctKey: 'A', correctAnswer: 'A. 复用逻辑' },
@@ -45,7 +47,9 @@
 			{ id: 'js-functions-q3', prompt: '3. What does `return` do in a function?', options: [{ key: 'A', label: 'A. Sends a value back' }, { key: 'B', label: 'B. Restarts the page' }, { key: 'C', label: 'C. Changes a CSS class' }], correctKey: 'A', correctAnswer: 'A. Sends a value back' },
 		])
 	const answers = ref(['', '', ''] as string[])
+	// 记录作答过程中曾经选错的题目，提交时用于写入错题本
 	const wrongQuestionIds = ref([] as string[])
+	// 记录首次错误答案文本，避免用户改对后丢失复盘信息
 	const wrongAnswers = ref(['', '', ''] as string[])
 	const resultMessage = ref('')
 	const hasSubmitted = ref(false)
@@ -57,15 +61,18 @@
 		if (answer != question.correctKey) {
 			const selected = question.options.find(option => option.key == answer)
 			if (wrongQuestionIds.value.indexOf(question.id) < 0) {
+				// 同一题只记录一次错题 id
 				wrongQuestionIds.value.push(question.id)
 			}
 			if (selected != null && wrongAnswers.value[index].length == 0) {
+				// 保留首次错误选项作为错题本里的“你的答案”
 				wrongAnswers.value[index] = selected.label
 			}
 		}
 	}
 	// 提交测验后计算得分，保存最高分，并把错题写入错题本
 	const submitQuiz = () => {
+		// 未答完时只提示用户，不评分也不同步错题
 		if (answers.value.some(answer => answer.length == 0)) { hasSubmitted.value = false; resultMessage.value = copy.value.answerAll; showNextButton.value = false; return }
 		hasSubmitted.value = true
 		let score = 0
@@ -73,11 +80,14 @@
 		for (let i = 0; i < questions.value.length; i++) {
 			const question = questions.value[i]
 			const selected = question.options.find(option => option.key == answers.value[i])
+			// 保存最终选择，作为错题本展示的兜底答案
 			selectedAnswers.push(selected ? selected.label : '')
 			if (answers.value[i] == question.correctKey) score += 1
 		}
+		// 同步本模块错题列表和后端错题数量快照
 		saveWrongQuestionsForModule('javascript', 'JavaScript', 'javascript-functions-practice', currentLanguage.value == 'zh' ? '函数与流程控制测验' : 'Functions and Control Flow Quiz', questions.value as any, selectedAnswers, wrongQuestionIds.value, wrongAnswers.value)
 		const savedScore = Number(uni.getStorageSync(SCORE_KEY) || 0)
+		// 只保留历史最高分
 		uni.setStorageSync(SCORE_KEY, score > savedScore ? score : savedScore)
 		resultMessage.value = copy.value.scorePrefix + score + copy.value.scoreMiddle
 		showNextButton.value = score == 3

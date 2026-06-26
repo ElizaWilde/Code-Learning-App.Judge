@@ -12,6 +12,7 @@
 			<text class="summary-copy">{{ copy.summaryCopy }}</text>
 		</view>
 
+		<!-- 按学习路径分组展示错题，空路径也展示空态，方便用户确认各方向复习情况 -->
 		<view class="path-group" v-for="group in wrongQuestionGroups" :key="group.pathId">
 			<view class="path-header">
 				<text class="path-title">{{ group.pathTitle }}</text>
@@ -34,6 +35,7 @@
 	import { getTotalWrongQuestionCount, getWrongQuestionGroups } from '../../utils/wrongQuestions.uts'
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 
+	// 页面展示的数据全部从 wrongQuestions 工具读取，避免页面直接操作本地存储
 	const wrongQuestionGroups = ref(getWrongQuestionGroups())
 	const totalWrongQuestionCount = ref(0)
 	const currentLanguage = ref(getCurrentLanguage() as string)
@@ -64,6 +66,7 @@
 
 	// 从错题工具读取分组和总数，刷新页面展示
 	const loadWrongQuestionCollection = () => {
+		// 语言和错题数据都可能在其他页面变化，进入/返回本页时统一刷新
 		currentLanguage.value = getCurrentLanguage()
 		wrongQuestionGroups.value = getWrongQuestionGroups()
 		totalWrongQuestionCount.value = getTotalWrongQuestionCount()

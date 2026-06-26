@@ -4,8 +4,10 @@ const ACTIVE_COMMUNITY_POST_KEY = 'activeCommunityPostId'
 const LOGIN_USER_KEY = 'loggedInUser'
 const LOGIN_USER_TYPE_KEY = 'loggedInUserType'
 
+// 用户类型会影响社区和个人中心是否展示专家标识
 export type UserType = 'normal' | 'expert'
 
+// 用户端公开帖子结构，后端审核通过后返回这些字段
 export type CommunityPost = {
 	id : string
 	title : string
@@ -18,6 +20,7 @@ export type CommunityPost = {
 	authorType : UserType
 }
 
+// 评论目前保存在本地，以 postId 隔离不同帖子的评论列表
 export type CommunityComment = {
 	id : string
 	postId : string
@@ -39,6 +42,7 @@ export function getCurrentUserType() : UserType {
 
 export function getUserBadgeLabel(userType : UserType) : string {
 	if (userType == 'expert') {
+		// 专家用户在社区评论和帖子作者旁展示身份标识
 		return '大神'
 	}
 
@@ -56,6 +60,7 @@ export function getCurrentUsername() : string {
 }
 
 function getCommentsStorageKey(postId : string) : string {
+	// 每个帖子的评论使用独立 key，避免不同帖子评论串在一起
 	return COMMUNITY_COMMENTS_KEY_PREFIX + postId
 }
 
@@ -71,6 +76,7 @@ function readComments(postId : string) : CommunityComment[] {
 
 // 打开帖子详情前保存当前帖子 ID
 export function setActiveCommunityPostId(postId : string) {
+	// 详情页通过这个 key 读取当前要展示的帖子
 	uni.setStorageSync(ACTIVE_COMMUNITY_POST_KEY, postId)
 }
 
@@ -86,6 +92,7 @@ export function getCommentsForPost(postId : string) : CommunityComment[] {
 export function addCommentToPost(postId : string, content : string) {
 	const trimmedContent = content.trim()
 	if (trimmedContent.length == 0) {
+		// 空评论不写入本地存储
 		return
 	}
 
@@ -93,6 +100,7 @@ export function addCommentToPost(postId : string, content : string) {
 	const author = getCurrentUsername()
 	const authorType = getCurrentUserType()
 	const nextComment = {
+		// 本地评论用时间戳生成临时 id，足够区分当前设备上的评论
 		id: 'comment-' + String(Date.now()),
 		postId,
 		author,
@@ -101,5 +109,6 @@ export function addCommentToPost(postId : string, content : string) {
 		meta: 'Comment by ' + author,
 	} as CommunityComment
 
+	// 追加评论后整体写回本地存储
 	uni.setStorageSync(getCommentsStorageKey(postId), [...comments, nextComment])
 }

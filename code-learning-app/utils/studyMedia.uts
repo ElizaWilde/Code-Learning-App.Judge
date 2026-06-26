@@ -1,4 +1,5 @@
 // 功能：集中维护学习模块配图、视频地址和网页视频播放器转换规则
+// 视频播放页读取这个 key，把外部视频地址转换成可嵌入的播放器地址
 export const ACTIVE_VIDEO_URL_KEY = 'activeVideoUrl'
 
 export type StudyModuleMedia = {
@@ -6,13 +7,17 @@ export type StudyModuleMedia = {
 	videoUrl : string
 }
 
+// 普通 mp4 作为没有专属视频时的兜底视频源，可直接用 uni-app video 组件播放
 const DEFAULT_VIDEO_URL = 'https://www.w3schools.com/html/mov_bbb.mp4'
+// B 站原始视频页需要转换成 player.bilibili.com，web-view 才能直接播放
 const JAVASCRIPT_ASYNC_VIDEO_URL = 'https://www.bilibili.com/video/BV1WP4y187Tu/?spm_id_from=333.337.search-card.all.click&vd_source=3f3d9ab8a2c698f7fb9971436d10e50d'
 
+// 为没有真实配图的模块生成占位图，文字用 + 拼接以适配 dummyimage 的 URL 参数
 function createImageUrl(background : string, textColor : string, text : string) : string {
 	return 'https://dummyimage.com/1200x720/' + background + '/' + textColor + '&text=' + text
 }
 
+// 根据模块 ID 返回该模块的概念图和视频地址，详情页只需要消费统一的 StudyModuleMedia
 export function getStudyModuleMedia(moduleId : string) : StudyModuleMedia {
 	switch (moduleId) {
 		case 'javascript-functions':
@@ -92,6 +97,7 @@ export function getStudyModuleMedia(moduleId : string) : StudyModuleMedia {
 			}
 		case 'javascript-syntax':
 		default:
+			// 未识别模块统一回到 JavaScript 语法模块，保证详情页始终有可渲染内容
 			return {
 				imageUrl: 'https://www.runoob.com/wp-content/uploads/2013/08/Javascript-DataType.png',
 				videoUrl: 'https://www.bilibili.com/video/BV1o94y1A7xd/?spm_id_from=333.337.search-card.all.click&vd_source=3f3d9ab8a2c698f7fb9971436d10e50d',
@@ -99,10 +105,12 @@ export function getStudyModuleMedia(moduleId : string) : StudyModuleMedia {
 	}
 }
 
+// B 站页面不能直接交给 video 组件播放，需要走 web-view 嵌入播放器
 export function isWebVideoUrl(url : string) : boolean {
 	return url.indexOf('bilibili.com') >= 0 || url.indexOf('player.bilibili.com') >= 0
 }
 
+// 从 B 站视频 URL 中提取 BV 号，用于拼接官方嵌入播放器地址
 function extractBilibiliBvid(url : string) : string {
 	const markerIndex = url.indexOf('BV')
 	if (markerIndex < 0) {
@@ -114,6 +122,7 @@ function extractBilibiliBvid(url : string) : string {
 	let index = markerIndex + 2
 	while (index < url.length) {
 		const char = url.charAt(index)
+		// BV 号只保留字母和数字，遇到 ?、/、& 等 URL 分隔符就停止
 		if (allowedChars.indexOf(char) < 0) {
 			break
 		}
@@ -124,15 +133,19 @@ function extractBilibiliBvid(url : string) : string {
 	return bvid.length > 2 ? bvid : ''
 }
 
+// 将外部视频页转换成详情页和视频页都能使用的播放地址
 export function toWebVideoPlayerUrl(url : string) : string {
 	if (url.indexOf('player.bilibili.com') >= 0) {
+		// 已经是嵌入播放器地址时直接复用，避免重复转换
 		return url
 	}
 
 	const bvid = extractBilibiliBvid(url)
 	if (bvid.length > 0) {
+		// 关闭自动播放和弹幕，避免学习详情页加载后自动打断用户阅读
 		return 'https://player.bilibili.com/player.html?bvid=' + bvid + '&page=1&autoplay=0&danmaku=0'
 	}
 
+	// 非 B 站地址保持原样，交给调用方按普通视频或 web-view 处理
 	return url
 }

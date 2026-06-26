@@ -26,6 +26,7 @@
 	import { getCurrentLanguage } from '../../utils/i18n.uts'
 	import { openStudyModule } from '../../utils/studyModule.uts'
 
+	// 当前练习模块的最高分存储 key，学习路径页读取它显示进度
 	const SCORE_KEY = 'javascriptSyntaxPracticeScore'
 	const currentLanguage = ref(getCurrentLanguage() as string)
 	const copyMap = {
@@ -54,6 +55,7 @@
 	}
 	const copy = computed(() => copyMap[currentLanguage.value] || copyMap.en)
 
+	// 题目随语言切换而变化，但 id 保持一致，方便错题本识别同一道题
 	const questions = computed(() => {
 		if (currentLanguage.value == 'zh') {
 			return [
@@ -70,7 +72,9 @@
 	})
 
 	const answers = ref(['', '', ''] as string[])
+	// 保存用户作答过程中选错过的题目 id，用于提交时判断是否进入错题本
 	const wrongQuestionIds = ref([] as string[])
+	// 保存每道题首次错误选项文本，用于错题本展示“你的答案”
 	const wrongAnswers = ref(['', '', ''] as string[])
 	const resultMessage = ref('')
 	const hasSubmitted = ref(false)
@@ -83,9 +87,11 @@
 		if (answer != question.correctKey) {
 			const selected = question.options.find(option => option.key == answer)
 			if (wrongQuestionIds.value.indexOf(question.id) < 0) {
+				// 同一道题只记录一次错题 id，避免重复点击错误选项产生重复记录
 				wrongQuestionIds.value.push(question.id)
 			}
 			if (selected != null && wrongAnswers.value[index].length == 0) {
+				// 保留首次错误答案，后续即使改对也能进入错题本复习
 				wrongAnswers.value[index] = selected.label
 			}
 		}
@@ -94,6 +100,7 @@
 	// 提交测验后计算得分，保存最高分，并把错题写入错题本
 	const submitQuiz = () => {
 		if (answers.value.some(answer => answer.length == 0)) {
+			// 未答完不进入评分和错题保存流程
 			hasSubmitted.value = false
 			resultMessage.value = copy.value.answerAll
 			showNextButton.value = false
@@ -106,13 +113,16 @@
 		for (let i = 0; i < questions.value.length; i++) {
 			const question = questions.value[i]
 			const selected = question.options.find(option => option.key == answers.value[i])
+			// selectedAnswers 保存用户最终选择，作为错题本展示兜底
 			selectedAnswers.push(selected ? selected.label : '')
 			if (answers.value[i] == question.correctKey) {
 				score += 1
 			}
 		}
+		// 保存本模块错题，并同步该模块当前错题数量到后端 analytics
 		saveWrongQuestionsForModule('javascript', 'JavaScript', 'javascript-syntax-practice', currentLanguage.value == 'zh' ? '语法与数据类型测验' : 'Syntax and Data Types Quiz', questions.value as any, selectedAnswers, wrongQuestionIds.value, wrongAnswers.value)
 		const savedScore = Number(uni.getStorageSync(SCORE_KEY) || 0)
+		// 只保存最高分，不用低分覆盖历史最好成绩
 		uni.setStorageSync(SCORE_KEY, score > savedScore ? score : savedScore)
 		resultMessage.value = copy.value.scorePrefix + score + copy.value.scoreMiddle
 		showNextButton.value = score == 3

@@ -1,8 +1,10 @@
 // 功能：保存当前选中的学习模块 ID，并统一跳转到学习模块详情页
+// 详情页会读取这个 key，决定展示哪个模块的标题、正文、媒体和练习入口
 export const ACTIVE_STUDY_MODULE_KEY = 'activeStudyModule'
 
 // 学习路径页调用此函数，先保存模块 ID，再跳转到统一的模块详情页
 export function openStudyModule(moduleId : string) {
+	// 用本地存储传递模块 ID，避免在多个路径页里重复维护详情页参数
 	uni.setStorageSync(ACTIVE_STUDY_MODULE_KEY, moduleId)
 	uni.navigateTo({
 		url: '/pages/studyModule/studyModule',

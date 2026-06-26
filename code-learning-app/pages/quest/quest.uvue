@@ -120,11 +120,13 @@
 
 	type JudgeLanguage = 'python' | 'java'
 
+	// 后端和本地兜底题库都按 python/java 两种语言提供初始代码和参考答案
 	type StarterCodes = {
 		python: string
 		java: string
 	}
 
+	// 题目详情页只消费展示与判题必要字段，避免前端依赖后端题库的内部存储结构
 	type QuestPayload = {
 		title: string
 		difficulty: string
@@ -138,6 +140,7 @@
 		referenceSolutions: StarterCodes
 	}
 
+	// 判题日志对应单个测试用例，用于结果面板逐条展示输入输出差异
 	type JudgeLog = {
 		testName: string
 		passed: boolean
@@ -148,6 +151,7 @@
 		durationMs: number
 	}
 
+	// uni.request 返回 any，这里先做运行时校验，防止异常数据进入编辑器状态
 	const isStarterCodes = (value : any): boolean => {
 		return value != null
 			&& typeof value == 'object'
@@ -155,6 +159,7 @@
 			&& typeof value.java == 'string'
 	}
 
+	// 校验题目详情响应结构，只有字段完整时才使用后端题目覆盖本地兜底内容
 	const isQuestPayload = (value : any): boolean => {
 		return value != null
 			&& typeof value == 'object'
@@ -173,6 +178,7 @@
 	const ACTIVE_QUEST_KEY = 'activeQuestId'
 	const QUEST_STATUS_PREFIX = 'questStatus:'
 	const LOGIN_USER_KEY = 'loggedInUser'
+	// 页面文案跟随应用语言切换，题目内容本身由题库提供
 	const currentLanguage = ref(getCurrentLanguage() as string)
 	const copyMap = {
 		en: {
@@ -542,14 +548,17 @@ class Solution {
 		}
 	}
 
+	// 题库请求失败或题目缺失时，按题目 ID 查找页面内置兜底题；仍找不到则生成占位题
 	const getFallbackQuest = (questId : string): QuestPayload => {
 		return fallbackQuestCatalog[questId] || emptyQuest(questId)
 	}
 
+	// 判题相关接口统一从 utils/api 拼接，便于真机、浏览器和本地后端切换
 	const getJudgeApiBase = (): string => {
 		return getApiUrl('/api/judge')
 	}
 
+	// 警告文案展示可读的后端地址，帮助定位后端未启动或地址配置错误
 	const getJudgeApiOriginLabel = (): string => {
 		const origin = getApiOrigin()
 		if (origin.length > 0) {
@@ -560,6 +569,7 @@ class Solution {
 
 	const activeQuestId = ref('two-sum')
 	const initialQuest = getFallbackQuest('two-sum')
+	// 题目信息状态由 setQuestContent 统一写入，后端和兜底题走同一条渲染路径
 	const title = ref(initialQuest.title)
 	const difficulty = ref(initialQuest.difficulty)
 	const difficultyClass = ref(initialQuest.difficultyClass)
@@ -571,10 +581,12 @@ class Solution {
 
 	const selectedLanguage = ref('python' as JudgeLanguage)
 	const languageLabel = ref('Python')
+	// 分别缓存两种语言的编辑内容，切换语言时不会丢失用户已经输入的代码
 	const pythonCode = ref(initialQuest.starterCodes.python)
 	const javaCode = ref(initialQuest.starterCodes.java)
 	const editorCode = ref(initialQuest.starterCodes.python)
 
+	// 参考答案默认隐藏，正式提交后再展示，并允许单独切换参考答案语言
 	const referencePython = ref(initialQuest.referenceSolutions ? initialQuest.referenceSolutions.python : '')
 	const referenceJava = ref(initialQuest.referenceSolutions ? initialQuest.referenceSolutions.java : '')
 	const judgeBackendAvailable = ref(true)
@@ -585,6 +597,7 @@ class Solution {
 
 	const judgeLoading = ref(false)
 	const backendWarningMessage = ref(copy.value.backendUnavailable)
+	// 判题结果区仅在收到有效判题结果后显示
 	const resultReady = ref(false)
 	const judgeStatusLabel = ref('')
 	const judgeStatusClass = ref('')
@@ -599,6 +612,7 @@ class Solution {
 	const referenceNote = ref('')
 	const logs = ref([] as JudgeLog[])
 
+	// 切换题目或加载后端题目时，统一刷新题面、代码模板和参考答案状态
 	const setQuestContent = (quest : QuestPayload) => {
 		title.value = quest.title
 		difficulty.value = quest.difficulty
@@ -621,6 +635,7 @@ class Solution {
 		activeReferenceCode.value = referencePython.value
 	}
 
+	// 将当前 textarea 内容回写到对应语言缓存，保证切换语言和提交时拿到最新代码
 	const syncCurrentCode = () => {
 		if (selectedLanguage.value == 'python') {
 			pythonCode.value = editorCode.value
@@ -648,6 +663,7 @@ class Solution {
 		}
 	}
 
+	// 切换参考答案语言只影响答案展示，不影响正在编辑和提交的代码
 	const switchReferenceLanguage = (language : JudgeLanguage) => {
 		referenceLanguage.value = language
 		if (language == 'python') {
@@ -663,6 +679,7 @@ class Solution {
 	}
 
 	// 优先从后端题库加载题目，失败时再使用页面内置兜底题目
+	//请求GET /api/judge/quest/:id
 	const fetchQuest = () => {
 		uni.request({
 			url: getJudgeApiBase() + '/quest/' + activeQuestId.value,
@@ -670,10 +687,12 @@ class Solution {
 			success: (res) => {
 				const questData = res.data as any
 				if (res.statusCode == 200 && isQuestPayload(questData)) {
+					// 后端题目有效时标记后端可用，并用题库内容覆盖本地兜底题
 					judgeBackendAvailable.value = true
 					setQuestContent(questData as QuestPayload)
 					return
 				}
+				// 响应结构不符合约定时降级到本地题面，避免页面空白
 				loadFallbackQuest()
 				uni.showToast({
 					title: copy.value.invalidQuestResponse,
@@ -696,11 +715,14 @@ class Solution {
 
 	// 根据运行或提交结果更新本地任务状态和每日练习记录
 	const updateTaskStatus = (mode : string, status : string) => {
+		// 无论运行还是提交，都算一次当天练习，用于个人中心热力图
 		recordTodayCheckIn()
 		if (mode == 'submit' && status == 'accepted') {
+			// 只有正式提交并通过全部测试，题目状态才标记为 solved
 			uni.setStorageSync(QUEST_STATUS_PREFIX + activeQuestId.value, 'solved')
 			return
 		}
+		// 运行代码或提交未通过都只标记为 attempted
 		uni.setStorageSync(QUEST_STATUS_PREFIX + activeQuestId.value, 'attempted')
 	}
 
@@ -714,6 +736,7 @@ class Solution {
 			return
 		}
 		resultReady.value = true
+		// 后端返回的 summary/status 驱动页面结果标题和通过/失败样式
 		judgeStatusLabel.value = result.summary
 		judgeStatusClass.value = result.status == 'accepted' ? 'status-pass' : 'status-fail'
 		errorType.value = result.errorType
@@ -726,6 +749,7 @@ class Solution {
 		referenceTitle.value = result.referenceTitle || ''
 		referenceNote.value = result.referenceNote || ''
 		logs.value = (result.logs || []) as JudgeLog[]
+		// 判题结果落地到本地任务状态和每日练习记录
 		updateTaskStatus(mode, result.status as string)
 	}
 
@@ -733,6 +757,7 @@ class Solution {
 	const judge = (mode : string) => {
 		syncCurrentCode()
 		judgeLoading.value = true
+		// username 传给后端 analytics，用于记录 judge_run / judge_submit 和提交通过率
 		const username = (uni.getStorageSync(LOGIN_USER_KEY) as string).trim()
 		uni.request({
 			url: getJudgeApiBase() + '/' + mode,
@@ -741,6 +766,7 @@ class Solution {
 				'Content-Type': 'application/json',
 			},
 			data: {
+				// questId/language/code 是判题必需字段；username 只用于后端学习统计
 				questId: activeQuestId.value,
 				language: selectedLanguage.value,
 				code: editorCode.value,
@@ -749,10 +775,12 @@ class Solution {
 			success: (res) => {
 				const data = res.data as any
 				if (res.statusCode == 200 && data != null && typeof data == 'object' && data.result != null) {
+					// 判题成功后用 result 更新日志、分数、错误提示和本地练习状态
 					judgeBackendAvailable.value = true
 					applyJudgeResult(mode, data.result)
 					return
 				}
+				// HTTP 成功但响应结构不符合约定，按后端不可用处理并提示用户
 				judgeBackendAvailable.value = false
 				backendWarningMessage.value = copy.value.backendFailed + getJudgeApiOriginLabel() + '.'
 				uni.showToast({
@@ -761,6 +789,7 @@ class Solution {
 				})
 			},
 			fail: () => {
+				// 网络失败通常表示后端未启动或地址不可达
 				judgeBackendAvailable.value = false
 				backendWarningMessage.value = copy.value.backendUnreachable + getJudgeApiOriginLabel() + '.'
 				uni.showToast({
@@ -769,12 +798,14 @@ class Solution {
 				})
 			},
 			complete: () => {
+				// 所有请求分支结束后关闭按钮 loading 状态
 				judgeLoading.value = false
 			},
 		})
 	}
 
 	// Run 只跑可见测试用例，适合调试
+	//请求：POST /api/judge/run
 	const runCode = () => {
 		judge('run')
 	}
