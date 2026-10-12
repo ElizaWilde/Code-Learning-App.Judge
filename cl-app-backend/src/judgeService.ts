@@ -197,7 +197,7 @@ async function runSingleTest(
   code: string,
   testCase: JudgeTestCase
 ): Promise<{ kind: ErrorType | "passed"; log: JudgeLog }> {
-  // 1.每个测试用例使用独立临时目录，避免文件、编译产物或运行状态互相污染
+// 1.每个测试用例使用独立临时目录，避免文件、编译产物或运行状态互相污染
   const workdir = await fs.mkdtemp(path.join(os.tmpdir(), "cl-judge-"));
 
   try {

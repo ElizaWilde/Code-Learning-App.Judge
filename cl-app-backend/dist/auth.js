@@ -5,14 +5,12 @@ const db_1 = require("./db");
 const session_1 = require("./session");
 const roles_1 = require("./roles");
 const analyticsStore_1 = require("./analyticsStore");
+const config_1 = require("./config");
 /**
  * 认证和账号权限模块：负责登录注册、JWT 发放、当前用户读取、退出登录和管理员用户管理
  */
 //Node.js 处理：/api/auth/register、/login、/me、/logout、/users 等 API 请求。用户登录后，Node.js 后端会生成 JWT 返回给前端
 const router = (0, express_1.Router)();
-// 默认管理员用于首次启动时进入后台；正式环境可以用环境变量覆盖
-const DEFAULT_ADMIN_USERNAME = process.env.CODEBOX_ADMIN_USERNAME?.trim() || "admin";
-const DEFAULT_ADMIN_PASSWORD = process.env.CODEBOX_ADMIN_PASSWORD?.trim() || "CodeBox123";
 // 统一校验登录/注册凭据，避免每个接口重复判断字段类型和长度规则
 function parseCredentials(body) {
     if (typeof body.username !== "string" || typeof body.password !== "string") {
@@ -35,16 +33,18 @@ function buildUserResponse(user) {
         permissions: (0, session_1.getModulePermissions)(user.role)
     };
 }
-// 确保系统至少有一个 admin 账号；如果已有同名账号但角色不是 admin，则修正为 admin
+// Ensure the configured bootstrap administrator exists and always uses the
+// deployment-provided password. There is intentionally no built-in password.
 function ensureDefaultAdmin() {
-    const existing = (0, db_1.findUserByUsername)(DEFAULT_ADMIN_USERNAME);
+    const existing = (0, db_1.findUserByUsername)(config_1.ADMIN_USERNAME);
     if (!existing) {
-        (0, db_1.createUser)(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, "admin");
+        (0, db_1.createUser)(config_1.ADMIN_USERNAME, config_1.ADMIN_PASSWORD, "admin");
         return;
     }
     if (existing.role !== "admin") {
         (0, db_1.ensureUserRole)(existing.username, "admin");
     }
+    (0, db_1.ensureUserPassword)(existing.username, config_1.ADMIN_PASSWORD);
 }
 ensureDefaultAdmin();
 // 返回认证模块的基础信息，后台登录页可用它展示默认管理员和规则
@@ -54,7 +54,7 @@ router.get("/meta", (_req, res) => {
         passwordRule: "Password must be at least 6 characters.",
         usernameRule: "Username must be at least 3 characters.",
         roles: ["admin", "question_manager", "judge_manager", "analyst", "user"],
-        defaultAdminUsername: DEFAULT_ADMIN_USERNAME
+        defaultAdminUsername: config_1.ADMIN_USERNAME
     });
 });
 // 注册普通用户：创建成功后直接签发 JWT，让用户不需要再登录一次

@@ -17,6 +17,7 @@ import {
  */
 //预留扩展空间:当前持久化结构和运行时题目结构一致，后续如有运行时字段可在这里Omit<QuestDefinition, xxx>排除
 type PersistedQuestPayload = QuestDefinition;
+export type PublicQuestDefinition = Omit<QuestDefinition, "hiddenTests" | "referenceSolutions">;
 type PersistedQuestStore = {
   // 后台新增或覆盖的题目记录，以 quest id 为 key
   quests?: Record<string, unknown>;
@@ -182,6 +183,24 @@ function validateQuestInput(candidate: unknown): { ok: true; quest: QuestDefinit
 // 按 ID 获取完整题目，判题和题目详情页都会用到
 export function getQuestDefinition(questId: string): QuestDefinition | null {
   return mergedQuestMap()[questId] ?? null;
+}
+
+// Public question details must never expose judge-only tests or reference code.
+// Keep this projection at the store/API boundary so future public consumers do
+// not accidentally serialize the complete internal question definition.
+export function getPublicQuestDefinition(questId: string): PublicQuestDefinition | null {
+  const quest = getQuestDefinition(questId);
+  if (!quest) {
+    return null;
+  }
+
+  const {
+    hiddenTests: _hiddenTests,
+    referenceSolutions: _referenceSolutions,
+    ...publicQuest
+  } = cloneQuest(quest);
+
+  return publicQuest;
 }
 
 // 后台题库管理使用完整题目列表

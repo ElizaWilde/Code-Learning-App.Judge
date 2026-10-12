@@ -120,7 +120,7 @@
 
 	type JudgeLanguage = 'python' | 'java'
 
-	// 后端和本地兜底题库都按 python/java 两种语言提供初始代码和参考答案
+	// 初始代码由公开题目 API 返回；参考答案只存在于旧的本地兜底数据中。
 	type StarterCodes = {
 		python: string
 		java: string
@@ -137,7 +137,7 @@
 		example: string
 		constraints: string
 		starterCodes: StarterCodes
-		referenceSolutions: StarterCodes
+		referenceSolutions?: StarterCodes
 	}
 
 	// 判题日志对应单个测试用例，用于结果面板逐条展示输入输出差异
@@ -159,7 +159,7 @@
 			&& typeof value.java == 'string'
 	}
 
-	// 校验题目详情响应结构，只有字段完整时才使用后端题目覆盖本地兜底内容
+	// 校验公开题目详情；referenceSolutions 不再是公共 API 的必需字段。
 	const isQuestPayload = (value : any): boolean => {
 		return value != null
 			&& typeof value == 'object'
@@ -172,12 +172,12 @@
 			&& typeof value.example == 'string'
 			&& typeof value.constraints == 'string'
 			&& isStarterCodes(value.starterCodes)
-			&& isStarterCodes(value.referenceSolutions)
 	}
 
 	const ACTIVE_QUEST_KEY = 'activeQuestId'
 	const QUEST_STATUS_PREFIX = 'questStatus:'
 	const LOGIN_USER_KEY = 'loggedInUser'
+	const AUTH_TOKEN_KEY = 'authToken'
 	// 页面文案跟随应用语言切换，题目内容本身由题库提供
 	const currentLanguage = ref(getCurrentLanguage() as string)
 	const copyMap = {
@@ -757,16 +757,22 @@ class Solution {
 	const judge = (mode : string) => {
 		syncCurrentCode()
 		judgeLoading.value = true
-		// username 传给后端 analytics，用于记录 judge_run / judge_submit 和提交通过率
+		// username 只用于兼容公开 Run 的统计；Submit 身份由 JWT 决定。
 		const username = (uni.getStorageSync(LOGIN_USER_KEY) as string).trim()
+		const authToken = (uni.getStorageSync(AUTH_TOKEN_KEY) as string).trim()
+		const requestHeaders : UTSJSONObject = {
+			'Content-Type': 'application/json',
+		}
+		// Submit is authenticated; the backend derives its analytics identity from this token.
+		if (mode == 'submit' && authToken.length > 0) {
+			requestHeaders['Authorization'] = 'Bearer ' + authToken
+		}
 		uni.request({
 			url: getJudgeApiBase() + '/' + mode,
 			method: 'POST',
-			header: {
-				'Content-Type': 'application/json',
-			},
+			header: requestHeaders,
 			data: {
-				// questId/language/code 是判题必需字段；username 只用于后端学习统计
+				// questId/language/code 是判题必需字段；username 仅兼容公开 Run 的统计。
 				questId: activeQuestId.value,
 				language: selectedLanguage.value,
 				code: editorCode.value,

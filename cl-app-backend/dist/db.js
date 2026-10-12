@@ -10,6 +10,7 @@ exports.findUserByUsername = findUserByUsername;
 exports.authenticateUser = authenticateUser;
 exports.ensureUserRole = ensureUserRole;
 exports.ensureUserType = ensureUserType;
+exports.ensureUserPassword = ensureUserPassword;
 exports.listUsers = listUsers;
 exports.isUniqueConstraintError = isUniqueConstraintError;
 exports.getDatabasePath = getDatabasePath;
@@ -173,6 +174,11 @@ const listUsersStatement = db.prepare(`
   FROM users
   ORDER BY username COLLATE NOCASE ASC
 `);
+const updateUserPasswordStatement = db.prepare(`
+  UPDATE users
+  SET password_hash = ?
+  WHERE username = ?
+`);
 // 密码不保存明文，保存格式为 salt:scryptHash
 function hashPassword(password) {
     // 每个用户单独生成 salt，避免相同密码得到相同哈希
@@ -257,6 +263,11 @@ function ensureUserRole(username, role) {
 // 管理员后台修改用户类型
 function ensureUserType(username, userType) {
     db.prepare("UPDATE users SET user_type = ? WHERE username = ?").run(userType, username);
+}
+// Bootstrap credentials are supplied by deployment configuration. Updating the
+// hash on startup guarantees a legacy built-in password cannot remain active.
+function ensureUserPassword(username, password) {
+    updateUserPasswordStatement.run(hashPassword(password), username);
 }
 // 后台用户管理列表，只返回展示和权限判断需要的字段
 function listUsers() {

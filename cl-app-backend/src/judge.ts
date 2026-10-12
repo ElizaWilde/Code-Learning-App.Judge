@@ -2,10 +2,16 @@
 import { Request, Response, Router } from "express";
 import { JudgeLanguage } from "./judgeCatalog";
 import { judgeSubmission } from "./judgeService";
-import { AuthedRequest, requireRole } from "./session";
+import { AuthedRequest, requireAuth, requireRole } from "./session";
 import { enqueueJudgeJob, getJudgeQueueSnapshot, getJudgeSystemConfig, updateJudgeSystemConfig } from "./judgeAdmin";
-import { deleteQuestDefinition, getQuestDefinition, listQuestDefinitions, listQuestSummaries, upsertQuestDefinition } from "./questStore";
+import { deleteQuestDefinition, getPublicQuestDefinition, getQuestDefinition, listQuestDefinitions, listQuestSummaries, upsertQuestDefinition } from "./questStore";
 import { recordQuestSubmission, recordUserActivity } from "./analyticsStore";
+import {
+  JUDGE_MAX_SOURCE_BYTES,
+  JUDGE_RATE_LIMIT_MAX_REQUESTS,
+  JUDGE_RATE_LIMIT_WINDOW_MS
+} from "./config";
+import { createRateLimit } from "./rateLimit";
 
 const router = Router();
 
@@ -20,6 +26,19 @@ type JudgeBody = {
 function isJudgeLanguage(value: unknown): value is JudgeLanguage {
   return value === "python" || value === "java";
 }
+
+const judgeRateLimit = createRateLimit({
+  windowMs: JUDGE_RATE_LIMIT_WINDOW_MS,
+  maxRequests: JUDGE_RATE_LIMIT_MAX_REQUESTS,
+  keyGenerator: (req) => {
+    const userId = (req as AuthedRequest).authUser?.id;
+    if (userId !== undefined) {
+      return `user:${userId}`;
+    }
+
+    return `ip:${req.ip || req.socket.remoteAddress || "unknown"}`;
+  }
+});
 
 // 后台题库管理接口：返回完整题目，包括参考答案和隐藏测试
 router.get("/quests", requireRole(["admin", "question_manager"]), (_req: AuthedRequest, res: Response) => {
@@ -105,7 +124,7 @@ router.get("/admin/queue", requireRole(["admin", "judge_manager"]), (_req: Authe
 
 router.get("/quest/:id", (req: Request, res: Response) => {
   const questId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const quest = getQuestDefinition(questId);
+  const quest = getPublicQuestDefinition(questId);
 
   if (!quest) {
     return res.status(404).json({
@@ -117,13 +136,20 @@ router.get("/quest/:id", (req: Request, res: Response) => {
 });
 
 // run 和 submit 共用同一套请求校验、排队执行、结果记录逻辑
-async function handleJudge(req: Request, res: Response, mode: "run" | "submit") {
+async function handleJudge(req: AuthedRequest, res: Response, mode: "run" | "submit") {
   const body = (req.body ?? {}) as JudgeBody;
 
   // 1.run/submit 都必须提供题目 ID、语言和代码，语言必须在判题目录支持范围内
   if (typeof body.questId !== "string" || typeof body.code !== "string" || !isJudgeLanguage(body.language)) {
     return res.status(400).json({
       message: "questId, language, and code are required"
+    });
+  }
+
+  const sourceBytes = Buffer.byteLength(body.code, "utf8");
+  if (sourceBytes > JUDGE_MAX_SOURCE_BYTES) {
+    return res.status(413).json({
+      message: `code exceeds the ${JUDGE_MAX_SOURCE_BYTES}-byte limit`
     });
   }
 
@@ -143,12 +169,21 @@ async function handleJudge(req: Request, res: Response, mode: "run" | "submit") 
       judgeSubmission(body.questId as string, body.language as JudgeLanguage, body.code as string, mode)
     );
 
-    if (typeof body.username === "string" && body.username.trim().length > 0) {
+    // A protected submission is always attributed to the authenticated user.
+    // Public run requests retain their existing optional analytics identity for
+    // compatibility until that endpoint is migrated to authenticated access.
+    const analyticsUsername = mode === "submit"
+      ? req.authUser?.username
+      : typeof body.username === "string" && body.username.trim().length > 0
+        ? body.username.trim()
+        : undefined;
+
+    if (analyticsUsername) {
       // 4.run/submit 都记录用户行为，后台 DAU 和活动统计会用到
-      recordUserActivity(body.username, `judge_${mode}`);
+      recordUserActivity(analyticsUsername, `judge_${mode}`);
       if (mode === "submit") {
         // 只有正式提交参与提交量和通过率统计
-        recordQuestSubmission(body.username, body.questId, result.status);
+        recordQuestSubmission(analyticsUsername, body.questId, result.status);
       }
     }
 
@@ -168,11 +203,11 @@ async function handleJudge(req: Request, res: Response, mode: "run" | "submit") 
   }
 }
 
-router.post("/run", async (req: Request, res: Response) => {
+router.post("/run", judgeRateLimit, async (req: Request, res: Response) => {
   return handleJudge(req, res, "run");
 });
 
-router.post("/submit", async (req: Request, res: Response) => {
+router.post("/submit", requireAuth, judgeRateLimit, async (req: AuthedRequest, res: Response) => {
   return handleJudge(req, res, "submit");
 });
 

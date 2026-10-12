@@ -7,11 +7,24 @@ const session_1 = require("./session");
 const judgeAdmin_1 = require("./judgeAdmin");
 const questStore_1 = require("./questStore");
 const analyticsStore_1 = require("./analyticsStore");
+const config_1 = require("./config");
+const rateLimit_1 = require("./rateLimit");
 const router = (0, express_1.Router)();
 // 目前判题服务只允许 Python 和 Java 两种语言
 function isJudgeLanguage(value) {
     return value === "python" || value === "java";
 }
+const judgeRateLimit = (0, rateLimit_1.createRateLimit)({
+    windowMs: config_1.JUDGE_RATE_LIMIT_WINDOW_MS,
+    maxRequests: config_1.JUDGE_RATE_LIMIT_MAX_REQUESTS,
+    keyGenerator: (req) => {
+        const userId = req.authUser?.id;
+        if (userId !== undefined) {
+            return `user:${userId}`;
+        }
+        return `ip:${req.ip || req.socket.remoteAddress || "unknown"}`;
+    }
+});
 // 后台题库管理接口：返回完整题目，包括参考答案和隐藏测试
 router.get("/quests", (0, session_1.requireRole)(["admin", "question_manager"]), (_req, res) => {
     return res.json({
@@ -85,7 +98,7 @@ router.get("/admin/queue", (0, session_1.requireRole)(["admin", "judge_manager"]
 });
 router.get("/quest/:id", (req, res) => {
     const questId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const quest = (0, questStore_1.getQuestDefinition)(questId);
+    const quest = (0, questStore_1.getPublicQuestDefinition)(questId);
     if (!quest) {
         return res.status(404).json({
             message: "quest not found"
@@ -102,6 +115,12 @@ async function handleJudge(req, res, mode) {
             message: "questId, language, and code are required"
         });
     }
+    const sourceBytes = Buffer.byteLength(body.code, "utf8");
+    if (sourceBytes > config_1.JUDGE_MAX_SOURCE_BYTES) {
+        return res.status(413).json({
+            message: `code exceeds the ${config_1.JUDGE_MAX_SOURCE_BYTES}-byte limit`
+        });
+    }
     // 2.先确认题目存在，再进入队列，避免无效请求占用判题资源
     const quest = (0, questStore_1.getQuestDefinition)(body.questId);
     if (!quest) {
@@ -114,12 +133,20 @@ async function handleJudge(req, res, mode) {
         // 判题任务统一进入队列，避免并发过高时同时拉起过多执行环境
         //只有队列需要执行时才调用 judgeSubmission，避免每个请求都先执行一次判题逻辑再排队
         const result = await (0, judgeAdmin_1.enqueueJudgeJob)(body.questId, body.language, mode, () => (0, judgeService_1.judgeSubmission)(body.questId, body.language, body.code, mode));
-        if (typeof body.username === "string" && body.username.trim().length > 0) {
+        // A protected submission is always attributed to the authenticated user.
+        // Public run requests retain their existing optional analytics identity for
+        // compatibility until that endpoint is migrated to authenticated access.
+        const analyticsUsername = mode === "submit"
+            ? req.authUser?.username
+            : typeof body.username === "string" && body.username.trim().length > 0
+                ? body.username.trim()
+                : undefined;
+        if (analyticsUsername) {
             // 4.run/submit 都记录用户行为，后台 DAU 和活动统计会用到
-            (0, analyticsStore_1.recordUserActivity)(body.username, `judge_${mode}`);
+            (0, analyticsStore_1.recordUserActivity)(analyticsUsername, `judge_${mode}`);
             if (mode === "submit") {
                 // 只有正式提交参与提交量和通过率统计
-                (0, analyticsStore_1.recordQuestSubmission)(body.username, body.questId, result.status);
+                (0, analyticsStore_1.recordQuestSubmission)(analyticsUsername, body.questId, result.status);
             }
         }
         // 5.返回判题结果
@@ -138,10 +165,10 @@ async function handleJudge(req, res, mode) {
         });
     }
 }
-router.post("/run", async (req, res) => {
+router.post("/run", judgeRateLimit, async (req, res) => {
     return handleJudge(req, res, "run");
 });
-router.post("/submit", async (req, res) => {
+router.post("/submit", session_1.requireAuth, judgeRateLimit, async (req, res) => {
     return handleJudge(req, res, "submit");
 });
 exports.default = router;

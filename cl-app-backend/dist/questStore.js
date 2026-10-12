@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getQuestDefinition = getQuestDefinition;
+exports.getPublicQuestDefinition = getPublicQuestDefinition;
 exports.listQuestDefinitions = listQuestDefinitions;
 exports.listQuestSummaries = listQuestSummaries;
 exports.upsertQuestDefinition = upsertQuestDefinition;
@@ -151,6 +152,17 @@ function validateQuestInput(candidate) {
 // 按 ID 获取完整题目，判题和题目详情页都会用到
 function getQuestDefinition(questId) {
     return mergedQuestMap()[questId] ?? null;
+}
+// Public question details must never expose judge-only tests or reference code.
+// Keep this projection at the store/API boundary so future public consumers do
+// not accidentally serialize the complete internal question definition.
+function getPublicQuestDefinition(questId) {
+    const quest = getQuestDefinition(questId);
+    if (!quest) {
+        return null;
+    }
+    const { hiddenTests: _hiddenTests, referenceSolutions: _referenceSolutions, ...publicQuest } = cloneQuest(quest);
+    return publicQuest;
 }
 // 后台题库管理使用完整题目列表
 function listQuestDefinitions() {

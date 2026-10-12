@@ -1,0 +1,28 @@
+[
+  {
+    "name": "Python Two Sum accepted submission",
+    "questId": "two-sum",
+    "language": "python",
+    "code": "def solve(nums, target):\n    seen = {}\n    for index, value in enumerate(nums):\n        complement = target - value\n        if complement in seen:\n            return [seen[complement], index]\n        seen[value] = index\n",
+    "expected": {
+      "status": "accepted",
+      "errorType": "none",
+      "score": 100,
+      "passedCount": 4,
+      "totalCount": 4
+    }
+  },
+  {
+    "name": "Java Two Sum accepted submission",
+    "questId": "two-sum",
+    "language": "java",
+    "code": "import java.util.*;\nclass Solution {\n    public int[] solve(int[] nums, int target) {\n        Map<Integer, Integer> seen = new HashMap<>();\n        for (int index = 0; index < nums.length; index++) {\n            int complement = target - nums[index];\n            if (seen.containsKey(complement)) {\n                return new int[]{seen.get(complement), index};\n            }\n            seen.put(nums[index], index);\n        }\n        return new int[0];\n    }\n}\n",
+    "expected": {
+      "status": "accepted",
+      "errorType": "none",
+      "score": 100,
+      "passedCount": 4,
+      "totalCount": 4
+    }
+  }
+]

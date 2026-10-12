@@ -4,6 +4,7 @@ import { NextFunction, Request, Response } from "express";
 import { findUserByUsername } from "./db";
 import { MODULE_PERMISSIONS, UserRole } from "./roles";
 import { UserType } from "./db";
+import { JWT_SECRET } from "./config";
 
 type JwtPayload = {
   // sub 表示 JWT 的主体，这里存登录用户名
@@ -23,7 +24,6 @@ type AuthenticatedUser = {
   userType: UserType;
 };
 
-const JWT_SECRET = process.env.CODEBOX_JWT_SECRET?.trim() || "codebox-local-dev-secret";
 // 默认有效期为 7 天，可通过 CODEBOX_JWT_EXPIRES_IN_SECONDS 调整
 const JWT_EXPIRES_IN_SECONDS = Number(process.env.CODEBOX_JWT_EXPIRES_IN_SECONDS || 60 * 60 * 24 * 7);
 // JWT 本身是无状态的；为了支持退出登录立即失效，这里记录已吊销的 jti

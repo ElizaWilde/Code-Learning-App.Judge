@@ -5,6 +5,8 @@
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc",
+    "test": "tsc && node --test --test-concurrency=1 tests/characterization.test.js",
+    "test:judge:docker": "tsc && node --test --test-concurrency=1 tests/judge-docker.test.js",
     "start": "node dist/server.js",
     "start:windows": "start-backend.cmd"
   },

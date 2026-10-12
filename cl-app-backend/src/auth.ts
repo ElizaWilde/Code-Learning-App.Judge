@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import {
   authenticateUser,
   createUser,
+  ensureUserPassword,
   ensureUserRole,
   ensureUserType,
   findUserByUsername,
@@ -14,6 +15,7 @@ import {
 import { createSession, deleteSession, getModulePermissions, getRequestToken, requireAuth, requireRole, AuthedRequest } from "./session";
 import { UserRole, isUserRole } from "./roles";
 import { recordUserActivity } from "./analyticsStore";
+import { ADMIN_PASSWORD, ADMIN_USERNAME } from "./config";
 
 /**
  * 认证和账号权限模块：负责登录注册、JWT 发放、当前用户读取、退出登录和管理员用户管理
@@ -36,10 +38,6 @@ type RoleUpdateBody = {
 type UserTypeUpdateBody = {
   userType?: unknown;
 };
-
-// 默认管理员用于首次启动时进入后台；正式环境可以用环境变量覆盖
-const DEFAULT_ADMIN_USERNAME = process.env.CODEBOX_ADMIN_USERNAME?.trim() || "admin";
-const DEFAULT_ADMIN_PASSWORD = process.env.CODEBOX_ADMIN_PASSWORD?.trim() || "CodeBox123";
 
 // 统一校验登录/注册凭据，避免每个接口重复判断字段类型和长度规则
 function parseCredentials(body: AuthBody): { username: string; password: string } | null {
@@ -68,18 +66,21 @@ function buildUserResponse(user: { id: number; username: string; role: UserRole;
   };
 }
 
-// 确保系统至少有一个 admin 账号；如果已有同名账号但角色不是 admin，则修正为 admin
+// Ensure the configured bootstrap administrator exists and always uses the
+// deployment-provided password. There is intentionally no built-in password.
 function ensureDefaultAdmin(): void {
-  const existing = findUserByUsername(DEFAULT_ADMIN_USERNAME);
+  const existing = findUserByUsername(ADMIN_USERNAME);
 
   if (!existing) {
-    createUser(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD, "admin");
+    createUser(ADMIN_USERNAME, ADMIN_PASSWORD, "admin");
     return;
   }
 
   if (existing.role !== "admin") {
     ensureUserRole(existing.username, "admin");
   }
+
+  ensureUserPassword(existing.username, ADMIN_PASSWORD);
 }
 
 ensureDefaultAdmin();
@@ -91,7 +92,7 @@ router.get("/meta", (_req: Request, res: Response) => {
     passwordRule: "Password must be at least 6 characters.",
     usernameRule: "Username must be at least 3 characters.",
     roles: ["admin", "question_manager", "judge_manager", "analyst", "user"],
-    defaultAdminUsername: DEFAULT_ADMIN_USERNAME
+    defaultAdminUsername: ADMIN_USERNAME
   });
 });
 

@@ -13,7 +13,7 @@ exports.requireRole = requireRole;
 const node_crypto_1 = __importDefault(require("node:crypto"));
 const db_1 = require("./db");
 const roles_1 = require("./roles");
-const JWT_SECRET = process.env.CODEBOX_JWT_SECRET?.trim() || "codebox-local-dev-secret";
+const config_1 = require("./config");
 // 默认有效期为 7 天，可通过 CODEBOX_JWT_EXPIRES_IN_SECONDS 调整
 const JWT_EXPIRES_IN_SECONDS = Number(process.env.CODEBOX_JWT_EXPIRES_IN_SECONDS || 60 * 60 * 24 * 7);
 // JWT 本身是无状态的；为了支持退出登录立即失效，这里记录已吊销的 jti
@@ -146,7 +146,7 @@ function verifyJwt(token) {
 // 使用 HMAC-SHA256 签名，secret 来自环境变量 CODEBOX_JWT_SECRET
 function sign(value) {
     return node_crypto_1.default
-        .createHmac("sha256", JWT_SECRET)
+        .createHmac("sha256", config_1.JWT_SECRET)
         .update(value)
         .digest("base64url");
 }
